@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -82,6 +83,8 @@ class LoginViewModel @Inject constructor(
     }
 
     private fun runRegister(phone: String, name: String, onSuccess: (String) -> Unit) {
+        /*
+        // ====== الكود الفعلي المرتبط بـ Firestore (مظلل مؤقتاً) ======
         db.collection("Users")
             .whereEqualTo("phone_number", phone)
             .get()
@@ -112,9 +115,21 @@ class LoginViewModel @Inject constructor(
                         }
                 }
             }
+        */
+
+        // ====== كود مؤقت للاختبار (Mock) ======
+        viewModelScope.launch {
+            delay(1000) // محاكاة تحميل بسيط
+            val mockUserId = "test_user_${System.currentTimeMillis()}"
+            if (_rememberMe.value) saveSessionLocally(mockUserId, name, phone)
+            _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
+            onSuccess(mockUserId)
+        }
     }
 
     private fun runLogin(phone: String, onSuccess: (String) -> Unit) {
+        /*
+        // ====== الكود الفعلي المرتبط بـ Firestore (مظلل مؤقتاً) ======
         db.collection("Users")
             .whereEqualTo("phone_number", phone)
             .get()
@@ -144,6 +159,21 @@ class LoginViewModel @Inject constructor(
             .addOnFailureListener { e ->
                 _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
             }
+        */
+
+        // ====== كود مؤقت للاختبار (Mock) ======
+        viewModelScope.launch {
+            delay(1000)
+            // نحدد رقم معين للدخول السريع للمطورين
+            if (phone == "777777777") {
+                val mockUserId = "dev_user_123"
+                if (_rememberMe.value) saveSessionLocally(mockUserId, "مطور التطبيق", phone)
+                _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
+                onSuccess(mockUserId)
+            } else {
+                _uiState.value = _uiState.value.copy(isLoading = false, error = "رقم غير مسجل. للطور التجريبي استخدم 777777777")
+            }
+        }
     }
 
     private fun saveSessionLocally(userId: String, name: String, phone: String) {
