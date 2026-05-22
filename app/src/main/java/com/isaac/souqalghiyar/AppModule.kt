@@ -27,4 +27,12 @@ object AppModule {
     fun provideSharedPreferences(@ApplicationContext context: Context): SharedPreferences {
         return context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
     }
+
+    @Provides
+    @Singleton
+    fun provideMainRepository(firestore: FirebaseFirestore): MainRepository {
+        return MainRepositoryImpl(firestore)
+    }
+
+
 }
