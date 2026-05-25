@@ -13,6 +13,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.isaac.souqalghiyar.presentation.login.LoginScreen
 import com.isaac.souqalghiyar.presentation.main.MainScreen
+import com.isaac.souqalghiyar.presentation.orders.OrdersScreen
+import com.isaac.souqalghiyar.presentation.request_parts.RequestPartsScreen
 import com.isaac.souqalghiyar.ui.theme.SouqAlghiyarTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -67,14 +69,26 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // 3. شاشة طلب قطع الغيار (تم حجز مسارها برمجياً لبرمجتها لاحقاً)
+                        // 3. شاشة طلب قطع الغيار
                         composable("request_parts/{userId}/{vName}/{vModel}/{vinPic}") { backStackEntry ->
-                            // سيتم وضع واجهة RequestPartsScreen هنا لاحقاً
+                            RequestPartsScreen(
+                                userId = backStackEntry.arguments?.getString("userId") ?: "",
+                                vehicleName = backStackEntry.arguments?.getString("vName") ?: "",
+                                vehicleModel = backStackEntry.arguments?.getString("vModel") ?: "",
+                                picVinNumber = backStackEntry.arguments?.getString("vinPic") ?: "",
+                                onNavigateBack = { navController.popBackStack() }
+                            )
                         }
 
                         // 4. شاشة الطلبات (المعلقة والمنتهية)
                         composable("orders") { 
-                            // سيتم وضع واجهة OrdersScreen هنا لاحقاً
+                            // نستخرج المعرف الذي تم حفظه عند الدخول لجلبه مباشرة
+                            val currentUserId = sharedPref.getString("user_id", "") ?: ""
+                            
+                            OrdersScreen(
+                                userId = currentUserId,
+                                onNavigateBack = { navController.popBackStack() }
+                            )
                         }
                     }
                 }
