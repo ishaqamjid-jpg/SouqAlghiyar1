@@ -1,6 +1,10 @@
 package com.isaac.souqalghiyar.presentation.main
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -29,30 +34,36 @@ import kotlinx.coroutines.launch
 @Composable
 fun MainScreen(
     userId: String,
-    navigateToRequestParts: () -> Unit,
+    viewModel: MainViewModel = hiltViewModel(), // ربط الـ ViewModel الخاص بالإعلانات
+    navigateToRequestParts: (String, String, String) -> Unit, // نمرر اسم وموديل السيارة ورابط الصورة
     navigateToOrders: () -> Unit
 ) {
-    // متغيرات الحالة (States)
+    // جمع قائمة الإعلانات من قاعدة البيانات (إذا كانت جاهزة في الـ ViewModel)
+    val adsList by viewModel.adsList.collectAsState()
+
+    // متغيرات حالة حقول إدخال المركبة
     var carName by remember { mutableStateOf("") }
     var carModel by remember { mutableStateOf("") }
     var isAnalyzing by remember { mutableStateOf(false) }
+    var vinPicUrl by remember { mutableStateOf("") } // سيحفظ رابط الصورة مستقبلاً
+    
     val coroutineScope = rememberCoroutineScope()
 
-    // إجبار اتجاه الواجهة RTL للغة العربية
+    // إجبار اتجاه الواجهة RTL لتتناسب مع اللغة العربية
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = { Text("أهلاً بكم في سوق الغيار", fontWeight = FontWeight.Bold) },
                     actions = {
-                        // زر للذهاب إلى شاشة الطلبات المعلقة والمنتهية
                         IconButton(onClick = navigateToOrders) {
                             Icon(Icons.Default.ListAlt, contentDescription = "الطلبات", tint = Color.White)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color(0xFF0D1B6D),
-                        titleContentColor = Color.White
+                        titleContentColor = Color.White,
+                        actionIconContentColor = Color.White
                     )
                 )
             },
@@ -66,8 +77,8 @@ fun MainScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 
-                // 1. كارد الإعلانات المتحرك
-                AnimatedAdsCard()
+                // 1. بطاقة الإعلانات المتحركة
+                AnimatedAdsCard(ads = adsList)
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -111,7 +122,10 @@ fun MainScreen(
                         .height(120.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(Color(0xFFE0E0E0))
-                        .clickable { /* لاحقاً كود فتح الكاميرا أو المعرض */ },
+                        .clickable { 
+                            // لاحقاً هنا كود لفتح الكاميرا ورفع الصورة للفايربيز
+                            vinPicUrl = "mock_image_url" 
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -128,13 +142,13 @@ fun MainScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // 4. زر عرض نوع المركبة (تحليل AI / Internet)
+                // 4. زر عرض نوع المركبة (تحليل مؤقت كأنه ذكاء اصطناعي)
                 Button(
                     onClick = {
                         isAnalyzing = true
                         // محاكاة الاتصال بالنت أو الذكاء الاصطناعي لتحليل الصورة
                         coroutineScope.launch {
-                            delay(2500) // انتظار وهمي ثانيتين ونصف
+                            delay(2500) // انتظار وهمي لمدة ثانيتين ونصف
                             carName = "تويوتا لاندكروزر" // تعبئة أوتوماتيكية
                             carModel = "2023" // تعبئة أوتوماتيكية
                             isAnalyzing = false
@@ -155,16 +169,18 @@ fun MainScreen(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // 5. زر طلب قطع الغيار في أسفل الشاشة
+                // 5. زر طلب قطع الغيار في أسفل الشاشة (يُفعل فقط إذا تعرّف على السيارة)
                 Button(
-                    onClick = navigateToRequestParts,
+                    onClick = { 
+                        // تمرير البيانات المجلوبة للشاشة التالية الخاصة بجدول القطع
+                        navigateToRequestParts(carName, carModel, vinPicUrl.ifEmpty { "no_image" }) 
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(60.dp)
                         .shadow(4.dp, RoundedCornerShape(12.dp)),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D1B6D)),
-                    // يمكن جعل الزر مفعل فقط بعد أن يتعرف على نوع السيارة
                     enabled = carName.isNotEmpty() 
                 ) {
                     Text("طلب قطع غيار", fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -174,9 +190,9 @@ fun MainScreen(
     }
 }
 
-// مكون منفصل لبطاقة الإعلانات المتحركة (نبض خفيف)
+// مكون منفصل لبطاقة الإعلانات المتحركة
 @Composable
-fun AnimatedAdsCard() {
+fun AnimatedAdsCard(ads: List<Advertisement>) {
     val infiniteTransition = rememberInfiniteTransition(label = "ads_animation")
     val scale by infiniteTransition.animateFloat(
         initialValue = 0.98f,
@@ -187,6 +203,19 @@ fun AnimatedAdsCard() {
         ),
         label = "scale"
     )
+
+    // مؤشر للإعلان الحالي
+    var currentIndex by remember { mutableIntStateOf(0) }
+
+    // تغيير الإعلان كل 3 ثوانٍ إذا كان هناك أكثر من إعلان متاح
+    LaunchedEffect(ads) {
+        if (ads.isNotEmpty() && ads.size > 1) {
+            while (true) {
+                delay(3000)
+                currentIndex = (currentIndex + 1) % ads.size
+            }
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -200,16 +229,43 @@ fun AnimatedAdsCard() {
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFA000))
     ) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "مساحة إعلانية\n(عروض قطع الغيار والزيوت)",
-                textAlign = TextAlign.Center,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
-            )
+            if (ads.isEmpty()) {
+                // حالة افتراضية حتى يتم جلب البيانات
+                Text(
+                    text = "جارِ تحميل العروض...",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            } else {
+                // أنيميشن ناعم عند التبديل بين نصوص الإعلانات
+                AnimatedContent(
+                    targetState = currentIndex,
+                    transitionSpec = { fadeIn(tween(500)) togetherWith fadeOut(tween(500)) },
+                    label = "ad_transition"
+                ) { targetIndex ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = ads[targetIndex].title,
+                            textAlign = TextAlign.Center,
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 20.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = ads[targetIndex].content,
+                            textAlign = TextAlign.Center,
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 16.sp
+                        )
+                    }
+                }
+            }
         }
     }
 }
