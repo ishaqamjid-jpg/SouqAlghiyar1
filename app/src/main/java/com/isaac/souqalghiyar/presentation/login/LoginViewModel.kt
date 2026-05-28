@@ -1,18 +1,13 @@
 package com.isaac.souqalghiyar.presentation.login
 
-import android.app.Application
-import android.content.Context
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.firestore.FieldValue
-import com.google.firebase.firestore.FirebaseFirestore
+import com.isaac.souqalghiyar.domain.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// دمج الـ UiState في نفس الملف لتقليل عدد الملفات
 data class LoginUiState(
     val isLoading: Boolean = false,
     val isSuccess: Boolean = false,
@@ -21,11 +16,8 @@ data class LoginUiState(
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
-    application: Application
-) : AndroidViewModel(application) {
-
-    private val db = FirebaseFirestore.getInstance()
-    private val sharedPref = application.getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
+    private val authRepository: AuthRepository // تم الحقن النظيف هنا
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
@@ -36,10 +28,10 @@ class LoginViewModel @Inject constructor(
     private val _name = MutableStateFlow("")
     val name: StateFlow<String> = _name.asStateFlow()
 
-    private val _rememberMe = MutableStateFlow(true) // مفعل تلقائياً كخيار افتراضي ذكي
+    private val _rememberMe = MutableStateFlow(true)
     val rememberMe: StateFlow<Boolean> = _rememberMe.asStateFlow()
 
-    private val _isRegisterMode = MutableStateFlow(false) // يحدد هل الواجهة دخول أم اشتراك
+    private val _isRegisterMode = MutableStateFlow(false)
     val isRegisterMode: StateFlow<Boolean> = _isRegisterMode.asStateFlow()
 
     fun onPhoneChange(phone: String) { _phone.value = phone }
@@ -48,13 +40,11 @@ class LoginViewModel @Inject constructor(
 
     fun toggleRegisterMode() {
         _isRegisterMode.value = !_isRegisterMode.value
-        _uiState.value = _uiState.value.copy(error = null) // تصفير الأخطاء عند الانتقال
+        _uiState.value = _uiState.value.copy(error = null)
     }
 
     init {
-        // فحص تلقائي: إذا كان العميل مسجل ومفعل تذكرني يدخل فوراً للرئيسية
-        val isLoggedIn = sharedPref.getBoolean("is_logged_in", false)
-        if (isLoggedIn) {
+        if (authRepository.checkIsLoggedIn()) {
             _uiState.value = LoginUiState(isSuccess = true)
         }
     }
@@ -75,114 +65,20 @@ class LoginViewModel @Inject constructor(
 
         _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
-        if (_isRegisterMode.value) {
-            runRegister(currentPhone, currentName, onSuccess)
-        } else {
-            runLogin(currentPhone, onSuccess)
-        }
-    }
-
-    private fun runRegister(phone: String, name: String, onSuccess: (String) -> Unit) {
-        /*
-        // ====== الكود الفعلي المرتبط بـ Firestore (مظلل مؤقتاً) ======
-        db.collection("Users")
-            .whereEqualTo("phone_number", phone)
-            .get()
-            .addOnSuccessListener { documents ->
-                if (!documents.isEmpty) {
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = "هذا الرقم مسجل مسبقاً، قم بتسجيل الدخول")
-                } else {
-                    val userId = db.collection("Users").document().id
-                    val mockFcmToken = "mock_fcm_${System.currentTimeMillis()}"
-
-                    val userMap = hashMapOf(
-                        "user_id" to userId,
-                        "phone_number" to phone,
-                        "display_name" to name,
-                        "created_at" to FieldValue.serverTimestamp(),
-                        "status" to "active",
-                        "fcm_token" to mockFcmToken
-                    )
-
-                    db.collection("Users").document(userId).set(userMap)
-                        .addOnSuccessListener {
-                            if (_rememberMe.value) saveSessionLocally(userId, name, phone)
-                            _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
-                            onSuccess(userId)
-                        }
-                        .addOnFailureListener { e ->
-                            _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
-                        }
-                }
-            }
-        */
-
-        // ====== كود مؤقت للاختبار (Mock) ======
         viewModelScope.launch {
-            delay(1000) // محاكاة تحميل بسيط
-            val mockUserId = "test_user_${System.currentTimeMillis()}"
-            if (_rememberMe.value) saveSessionLocally(mockUserId, name, phone)
-            _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
-            onSuccess(mockUserId)
-        }
-    }
-
-    private fun runLogin(phone: String, onSuccess: (String) -> Unit) {
-        /*
-        // ====== الكود الفعلي المرتبط بـ Firestore (مظلل مؤقتاً) ======
-        db.collection("Users")
-            .whereEqualTo("phone_number", phone)
-            .get()
-            .addOnSuccessListener { documents ->
-                if (documents.isEmpty) {
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = "الحساب غير موجود، يرجى اختيار اشتراك جديد")
-                } else {
-                    val document = documents.documents[0]
-                    val status = document.getString("status") ?: "active"
-                    val userId = document.getString("user_id") ?: ""
-                    val name = document.getString("display_name") ?: ""
-
-                    if (status == "banned") {
-                        _uiState.value = _uiState.value.copy(isLoading = false, error = "عذراً، هذا الحساب محظور من النظام")
-                        return@addOnSuccessListener
+            val result = authRepository.authenticateUser(currentPhone, currentName, _isRegisterMode.value)
+            result.fold(
+                onSuccess = { userId ->
+                    if (_rememberMe.value) {
+                        authRepository.saveSessionLocally(userId, currentName, currentPhone)
                     }
-
-                    // تحديث الـ FCM Token للجهاز الجديد المتصل
-                    val mockFcmToken = "mock_fcm_updated_${System.currentTimeMillis()}"
-                    db.collection("Users").document(userId).update("fcm_token", mockFcmToken)
-
-                    if (_rememberMe.value) saveSessionLocally(userId, name, phone)
                     _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
                     onSuccess(userId)
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = error.message)
                 }
-            }
-            .addOnFailureListener { e ->
-                _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
-            }
-        */
-
-        // ====== كود مؤقت للاختبار (Mock) ======
-        viewModelScope.launch {
-            delay(1000)
-            // نحدد رقم معين للدخول السريع للمطورين
-            if (phone == "777777777") {
-                val mockUserId = "dev_user_123"
-                if (_rememberMe.value) saveSessionLocally(mockUserId, "مطور التطبيق", phone)
-                _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
-                onSuccess(mockUserId)
-            } else {
-                _uiState.value = _uiState.value.copy(isLoading = false, error = "رقم غير مسجل. للطور التجريبي استخدم 777777777")
-            }
-        }
-    }
-
-    private fun saveSessionLocally(userId: String, name: String, phone: String) {
-        sharedPref.edit().apply {
-            putBoolean("is_logged_in", true)
-            putString("user_id", userId)
-            putString("user_name", name)
-            putString("user_phone", phone)
-            apply()
+            )
         }
     }
 }
