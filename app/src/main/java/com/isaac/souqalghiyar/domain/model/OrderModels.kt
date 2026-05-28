@@ -4,7 +4,7 @@ import com.google.firebase.firestore.ServerTimestamp
 import java.util.Date
 
 data class Order(
-    val order_id: String = "",
+    val order_id: String = "", // المعرف النصي الخاص بالوثيقة (Document ID)
     val user_id: String = "",
     val vehicle_name: String = "",
     val vehicle_model: String = "",
@@ -12,6 +12,7 @@ data class Order(
     val delivery_location: String = "",
     val delivery_fees: Double = 0.0,
     val order_status: String = "pending",
+    val order_number: Long = 0, // 👈 الحقل الذي أضفناه ليطابق قاعدة البيانات لديك
     @ServerTimestamp val created_at: Date? = null
 )
 
