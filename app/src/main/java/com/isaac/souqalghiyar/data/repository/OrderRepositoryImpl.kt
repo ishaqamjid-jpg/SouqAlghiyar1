@@ -18,18 +18,38 @@ class OrderRepositoryImpl @Inject constructor(
 
     override suspend fun submitOrderWithItem(order: Order, item: OrderItem): Result<Unit> {
         return try {
-            val batch = db.batch()
+            // مراجع الوثائق
+            val counterRef = db.collection("counters").document("orders")
             val orderRef = db.collection("orders").document()
-            val finalOrder = order.copy(order_id = orderRef.id)
-            batch.set(orderRef, finalOrder)
-
             val itemRef = orderRef.collection("items").document()
-            val finalItem = item.copy(item_id = itemRef.id)
-            batch.set(itemRef, finalItem)
 
-            batch.commit().await()
+            // استخدام Transaction لضمان التسلسل وعدم التداخل
+            db.runTransaction { transaction ->
+                // 1. قراءة العداد الحالي
+                val snapshot = transaction.get(counterRef)
+                val currentNumber = if (snapshot.exists()) snapshot.getLong("last_number") ?: 0L else 0L
+                val newOrderNumber = currentNumber + 1
+
+                // 2. تحديث العداد في قاعدة البيانات
+                transaction.update(counterRef, "last_number", newOrderNumber)
+
+                // 3. تجهيز الطلب بالرقم الجديد والـ ID
+                val finalOrder = order.copy(
+                    order_id = orderRef.id,
+                    order_number = newOrderNumber
+                )
+                transaction.set(orderRef, finalOrder)
+
+                // 4. تجهيز القطعة وحفظها
+                val finalItem = item.copy(item_id = itemRef.id)
+                transaction.set(itemRef, finalItem)
+                
+                null // Transaction تطلب إرجاع قيمة، نعيد null للنجاح
+            }.await()
+
             Result.success(Unit)
         } catch (e: Exception) {
+            e.printStackTrace()
             Result.failure(e)
         }
     }
@@ -42,7 +62,6 @@ class OrderRepositoryImpl @Inject constructor(
         listOf("وكالة", "درجة أولى", "درجة ثانية", "تجاري صيني")
     )
 
-    // تنفيذ جلب الطلبات للمستخدم العادي (مزامنة حية)
     override fun getUserOrders(userId: String): Flow<List<OrderWithItems>> = callbackFlow {
         val subscription = db.collection("orders")
             .whereEqualTo("user_id", userId)
@@ -54,8 +73,7 @@ class OrderRepositoryImpl @Inject constructor(
 
                 if (snapshot != null) {
                     val orderList = mutableListOf<OrderWithItems>()
-                    // ملاحظة: جلب الـ Subcollections يفضل أن يكون عبر دالة معلقة داخل الكوروتين،
-                    // لكن لغرض الـ SnapshotListener سنقوم بجلبها بشكل متزامن.
+                    
                     snapshot.documents.forEach { doc ->
                         val order = doc.toObject(Order::class.java)?.copy(order_id = doc.id)
                         if (order != null) {
