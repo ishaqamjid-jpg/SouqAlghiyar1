@@ -16,7 +16,7 @@ data class LoginUiState(
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
-    private val authRepository: AuthRepository // تم الحقن النظيف هنا
+    private val authRepository: AuthRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -79,6 +79,25 @@ class LoginViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(isLoading = false, error = error.message)
                 }
             )
+        }
+    }
+
+    // --- تم تعديل هذه الدالة لتطابق بيانات الـ Firebase الخاصة بك ---
+    fun testLogin(onSuccess: (String) -> Unit) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            kotlinx.coroutines.delay(500)
+
+            // البيانات المأخوذة من صورة قاعدة البيانات المرفقة
+            val testUserId = "test_user_123"
+            val testUserName = "امجد"
+            val testUserPhone = "+967770000000"
+
+            // حفظ الجلسة لكي يعمل التطبيق وكأن "أمجد" هو من سجل الدخول
+            authRepository.saveSessionLocally(testUserId, testUserName, testUserPhone)
+
+            _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
+            onSuccess(testUserId)
         }
     }
 }

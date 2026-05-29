@@ -1,6 +1,8 @@
 package com.isaac.souqalghiyar.domain.repository
 
-import com.isaac.souqalghiyar.presentation.main.Advertisement
+
+
+import com.isaac.souqalghiyar.domain.model.Advertisement
 import kotlinx.coroutines.flow.Flow
 
 interface MainRepository {

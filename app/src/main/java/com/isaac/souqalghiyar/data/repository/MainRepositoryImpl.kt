@@ -1,15 +1,15 @@
 package com.isaac.souqalghiyar.data.repository
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.isaac.souqalghiyar.domain.model.Advertisement
 import com.isaac.souqalghiyar.domain.repository.MainRepository
-import com.isaac.souqalghiyar.presentation.main.Advertisement
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import javax.inject.Inject
 
 class MainRepositoryImpl @Inject constructor(
-    private val firestore: FirebaseFirestore // Hilt سيقوم بحقنها تلقائياً بفضل AppModule
+    private val firestore: FirebaseFirestore
 ) : MainRepository {
 
     override suspend fun getAdvertisements(): Flow<List<Advertisement>> = callbackFlow {
@@ -19,7 +19,7 @@ class MainRepositoryImpl @Inject constructor(
                     close(error)
                     return@addSnapshotListener
                 }
-                
+
                 if (snapshot != null) {
                     val ads = snapshot.documents.mapNotNull { doc ->
                         Advertisement(
@@ -31,8 +31,7 @@ class MainRepositoryImpl @Inject constructor(
                     trySend(ads).isSuccess
                 }
             }
-        
-        // إغلاق الاتصال عند تدمير الكوروتين لتوفير الموارد
+
         awaitClose { subscription.remove() }
     }
 }

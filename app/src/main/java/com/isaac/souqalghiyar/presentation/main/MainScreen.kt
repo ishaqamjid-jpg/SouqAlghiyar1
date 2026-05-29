@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.isaac.souqalghiyar.domain.model.Advertisement
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

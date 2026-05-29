@@ -2,6 +2,7 @@ package com.isaac.souqalghiyar.presentation.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.isaac.souqalghiyar.domain.model.Advertisement
 import com.isaac.souqalghiyar.domain.repository.MainRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,7 +14,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val repository: MainRepository // حقن الـ Repository فقط! احترافية مطلقة.
+    private val repository: MainRepository
 ) : ViewModel() {
 
     private val _adsList = MutableStateFlow<List<Advertisement>>(emptyList())
@@ -26,8 +27,8 @@ class MainViewModel @Inject constructor(
     private fun fetchAdvertisements() {
         viewModelScope.launch {
             repository.getAdvertisements()
-                .catch { e -> 
-                    // معالجة الأخطاء هنا
+                .catch { e ->
+                    // يمكنك معالجة الأخطاء هنا
                 }
                 .collect { ads ->
                     _adsList.value = ads

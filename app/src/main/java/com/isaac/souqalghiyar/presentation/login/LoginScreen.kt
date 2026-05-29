@@ -22,6 +22,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.*
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.isaac.souqalghiyar.R
@@ -46,7 +47,7 @@ fun LoginScreen(
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
             // هنا يمرر المعرف الخاص به للرئيسية
-            navigateToMain(phone)
+            navigateToMain(phone.ifEmpty { "dev_test_123" }) // لضمان تمرير ID في حال الدخول المؤقت
         }
     }
 
@@ -111,7 +112,6 @@ fun LoginScreen(
                         unfocusedLabelColor = Color.White.copy(alpha = 0.7f),
                         focusedBorderColor = Color.White,
                         unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
-                        // الخاصية الصحيحة للـ Placeholder في الإصدارات الحديثة:
                         focusedPlaceholderColor = Color.White.copy(alpha = 0.4f),
                         unfocusedPlaceholderColor = Color.White.copy(alpha = 0.4f)
                     )
@@ -211,6 +211,17 @@ fun LoginScreen(
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
+                    )
+                }
+
+                // --- الإضافة الجديدة: زر الدخول المؤقت ---
+                TextButton(onClick = { viewModel.testLogin { navigateToMain(it) } }) {
+                    Text(
+                        text = "تخطي الدخول (للمطور فقط)",
+                        color = Color(0xFFFFEB3B), // أصفر ليكون بارزاً
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        textDecoration = TextDecoration.Underline
                     )
                 }
 
