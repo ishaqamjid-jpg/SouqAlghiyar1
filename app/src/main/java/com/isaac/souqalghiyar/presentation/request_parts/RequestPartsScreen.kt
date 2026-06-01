@@ -1,26 +1,34 @@
 package com.isaac.souqalghiyar.presentation.request_parts
 
 import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.isaac.souqalghiyar.domain.model.OrderItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,7 +41,9 @@ fun RequestPartsScreen(
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val itemsList by viewModel.itemsList.collectAsState()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
 
     // Observe form fields
     val partName by viewModel.partName.collectAsState()
@@ -43,13 +53,24 @@ fun RequestPartsScreen(
     val comments by viewModel.comments.collectAsState()
     val deliveryLocation by viewModel.deliveryLocation.collectAsState()
 
-    // Dropdown states
     var expandedPart by remember { mutableStateOf(false) }
     var expandedQuality by remember { mutableStateOf(false) }
 
+    // --- توحيد ألوان الخانات ليكون الخط أسود وواضح دائماً ---
+    val customTextFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = Color.Black,
+        unfocusedTextColor = Color.Black,
+        disabledTextColor = Color.Black, // في حال كانت الخانة للقراءة فقط
+        focusedBorderColor = Color(0xFF0D1B6D),
+        unfocusedBorderColor = Color.Gray,
+        focusedLabelColor = Color(0xFF0D1B6D),
+        unfocusedLabelColor = Color.DarkGray,
+        cursorColor = Color(0xFF0D1B6D)
+    )
+
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
-            Toast.makeText(context, "تم إرسال الطلب بنجاح!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "تم رفع الطلب والفاتورة بنجاح!", Toast.LENGTH_LONG).show()
             onNavigateBack()
         }
     }
@@ -74,154 +95,261 @@ fun RequestPartsScreen(
                     )
                 )
             },
-            containerColor = Color(0xFFF5F5F5)
+            containerColor = Color(0xFFF5F5F5) // لون خلفية الشاشة
         ) { innerPadding ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(rememberScrollState()), // يسمح بتمرير الشاشة للأسفل بسلاسة
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // بطاقة بيانات المركبة (توضيحية للمستخدم)
-                Card(
+                // رأس بيانات المركبة
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
+                    color = Color.White,
+                    shadowElevation = 2.dp
+                ) {
+                    Text(
+                        text = "المركبة: $vehicleName - $vehicleModel",
+                        modifier = Modifier.padding(16.dp),
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0D1B6D),
+                        fontSize = 16.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // --- قسم 1: بطاقة إدخال القطعة ---
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(2.dp)
                 ) {
                     Column(Modifier.padding(16.dp)) {
-                        Text("المركبة المحددة:", color = Color.Gray, fontSize = 12.sp)
-                        Text("$vehicleName - $vehicleModel", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("بيانات القطعة الجديدة", fontWeight = FontWeight.Bold, color = Color.Gray)
+                        Spacer(Modifier.height(12.dp))
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ExposedDropdownMenuBox(
+                                expanded = expandedPart,
+                                onExpandedChange = { expandedPart = !expandedPart },
+                                modifier = Modifier.weight(2f)
+                            ) {
+                                OutlinedTextField(
+                                    value = partName,
+                                    onValueChange = {
+                                        viewModel.partName.value = it
+                                        expandedPart = true // يفتح القائمة عند الكتابة للبحث
+                                    },
+                                    label = { Text("الاسم *") },
+                                    modifier = Modifier
+                                        .menuAnchor()
+                                        .fillMaxWidth(),
+                                    singleLine = true,
+                                    colors = customTextFieldColors // تطبيق الألوان
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = expandedPart,
+                                    onDismissRequest = { expandedPart = false },
+                                    modifier = Modifier.background(Color.White)
+                                ) {
+                                    uiState.categories.filter { it.contains(partName, ignoreCase = true) }.forEach { opt ->
+                                        DropdownMenuItem(
+                                            text = { Text(opt, color = Color.Black) },
+                                            onClick = {
+                                                viewModel.partName.value = opt
+                                                expandedPart = false
+                                                focusManager.clearFocus() // يغلق الكيبورد لتأكيد الاختيار
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            ExposedDropdownMenuBox(
+                                expanded = expandedQuality,
+                                onExpandedChange = { expandedQuality = !expandedQuality },
+                                modifier = Modifier.weight(1.5f)
+                            ) {
+                                OutlinedTextField(
+                                    value = qualityType,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("الجودة *") },
+                                    modifier = Modifier
+                                        .menuAnchor()
+                                        .fillMaxWidth(),
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedQuality) },
+                                    colors = customTextFieldColors // تطبيق الألوان
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = expandedQuality,
+                                    onDismissRequest = { expandedQuality = false },
+                                    modifier = Modifier.background(Color.White)
+                                ) {
+                                    uiState.qualityTypes.forEach { opt ->
+                                        DropdownMenuItem(
+                                            text = { Text(opt, color = Color.Black) },
+                                            onClick = {
+                                                viewModel.qualityType.value = opt
+                                                expandedQuality = false
+                                                focusManager.clearFocus()
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = quantity,
+                                onValueChange = { viewModel.quantity.value = it },
+                                label = { Text("العدد *") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                colors = customTextFieldColors // تطبيق الألوان
+                            )
+                            OutlinedTextField(
+                                value = description,
+                                onValueChange = { viewModel.description.value = it },
+                                label = { Text("وصف إضافي (اختياري)") },
+                                modifier = Modifier.weight(2f),
+                                colors = customTextFieldColors // تطبيق الألوان
+                            )
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = comments,
+                            onValueChange = { viewModel.comments.value = it },
+                            label = { Text("ملاحظات") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(80.dp),
+                            colors = customTextFieldColors // تطبيق الألوان
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+                        Button(
+                            onClick = {
+                                viewModel.addItemToTable()
+                                focusManager.clearFocus()
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(45.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF42A5F5)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("إضافة القطعة للجدول", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // 1. اسم القطعة (قائمة منسدلة + كتابة حرة)
-                ExposedDropdownMenuBox(
-                    expanded = expandedPart,
-                    onExpandedChange = { expandedPart = !expandedPart }
-                ) {
-                    OutlinedTextField(
-                        value = partName,
-                        onValueChange = { viewModel.partName.value = it },
-                        label = { Text("اسم القطعة") },
-                        placeholder = { Text("اكتب أو اختر من القائمة") },
-                        modifier = Modifier.menuAnchor().fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF0D1B6D))
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expandedPart,
-                        onDismissRequest = { expandedPart = false }
-                    ) {
-                        uiState.categories.filter { it.contains(partName, ignoreCase = true) }.forEach { selectionOption ->
-                            DropdownMenuItem(
-                                text = { Text(selectionOption) },
-                                onClick = {
-                                    viewModel.partName.value = selectionOption
-                                    expandedPart = false
-                                }
-                            )
+                // --- قسم 2: جدول القطع المضافة ---
+                if (itemsList.isNotEmpty()) {
+                    Column(Modifier.padding(horizontal = 16.dp)) {
+                        Text(
+                            "القطع المضافة للطلب (${itemsList.size}): اضغط للتعديل",
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0D1B6D)
+                        )
+                        Spacer(Modifier.height(8.dp))
+
+                        // رأس الجدول
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF0D1B6D), RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("الصنف", modifier = Modifier.weight(2f), color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("الجودة", modifier = Modifier.weight(1.5f), color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("العدد", modifier = Modifier.weight(0.8f), color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                            Text("إزالة", modifier = Modifier.weight(0.7f), color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                         }
+
+                        // صفوف الجدول (تفاعلية وقابلة للضغط للتعديل)
+                        itemsList.forEach { item ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.White)
+                                    .border(0.5.dp, Color.LightGray)
+                                    .clickable {
+                                        // سحب بيانات القطعة للأعلى لتعديلها
+                                        viewModel.editItemFromTable(item)
+                                        Toast.makeText(context, "تم سحب القطعة للتعديل", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(item.part_name, modifier = Modifier.weight(2f), fontSize = 14.sp, color = Color.Black)
+                                Text(item.quality_type, modifier = Modifier.weight(1.5f), fontSize = 14.sp, color = Color.DarkGray)
+                                Text(item.quantity.toString(), modifier = Modifier.weight(0.8f), fontSize = 14.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, color = Color.Black)
+                                IconButton(
+                                    onClick = { viewModel.removeItemFromTable(item) },
+                                    modifier = Modifier
+                                        .weight(0.7f)
+                                        .size(24.dp)
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = "حذف", tint = Color.Red)
+                                }
+                            }
+                        }
+                        // إغلاق إطار الجدول من الأسفل
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .background(Color.White, RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
+                                .border(0.5.dp, Color.LightGray)
+                        )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 2. الجودة (قائمة منسدلة مغلقة - قراءة فقط)
-                ExposedDropdownMenuBox(
-                    expanded = expandedQuality,
-                    onExpandedChange = { expandedQuality = !expandedQuality }
-                ) {
-                    OutlinedTextField(
-                        value = qualityType,
-                        onValueChange = { },
-                        readOnly = true, // لا يسمح بالكتابة الحرة هنا
-                        label = { Text("جودة القطعة المطلوبة *") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedQuality) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF0D1B6D))
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expandedQuality,
-                        onDismissRequest = { expandedQuality = false }
-                    ) {
-                        uiState.qualityTypes.forEach { selectionOption ->
-                            DropdownMenuItem(
-                                text = { Text(selectionOption) },
-                                onClick = {
-                                    viewModel.qualityType.value = selectionOption
-                                    expandedQuality = false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 3. العدد
-                OutlinedTextField(
-                    value = quantity,
-                    onValueChange = { viewModel.quantity.value = it },
-                    label = { Text("العدد *") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF0D1B6D))
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 4. وصف القطعة
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { viewModel.description.value = it },
-                    label = { Text("وصف إضافي (يمين، يسار، أمامي...)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF0D1B6D))
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 5. ملاحظات
-                OutlinedTextField(
-                    value = comments,
-                    onValueChange = { viewModel.comments.value = it },
-                    label = { Text("ملاحظات") },
-                    modifier = Modifier.fillMaxWidth().height(100.dp),
-                    maxLines = 3,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF0D1B6D))
-                )
 
                 Spacer(modifier = Modifier.height(24.dp))
-                HorizontalDivider(color = Color.LightGray)
-                Spacer(modifier = Modifier.height(16.dp))
 
-                // 6. عنوان التوصيل
-                OutlinedTextField(
-                    value = deliveryLocation,
-                    onValueChange = { viewModel.deliveryLocation.value = it },
-                    label = { Text("عنوان التوصيل بالكامل *") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF0D1B6D))
-                )
+                // --- قسم 3: عنوان التوصيل والإرسال النهائي ---
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    OutlinedTextField(
+                        value = deliveryLocation,
+                        onValueChange = { viewModel.deliveryLocation.value = it },
+                        label = { Text("عنوان التوصيل بالكامل *") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = customTextFieldColors // تطبيق الألوان هنا أيضاً
+                    )
 
-                Spacer(modifier = Modifier.height(30.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                // زر الإرسال
-                Button(
-                    onClick = { viewModel.submitOrder(userId, vehicleName, vehicleModel, picVinNumber) },
-                    modifier = Modifier.fillMaxWidth().height(55.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D1B6D)),
-                    enabled = !uiState.isLoading
-                ) {
-                    if (uiState.isLoading) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                    } else {
-                        Text("طلب فاتورة وتسعير", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Button(
+                        onClick = { viewModel.submitOrder(userId, vehicleName, vehicleModel, picVinNumber) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(55.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D1B6D)),
+                        enabled = !uiState.isLoading
+                    ) {
+                        if (uiState.isLoading) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                        } else {
+                            Text("تأكيد وطلب الفاتورة", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
+                    Spacer(modifier = Modifier.height(30.dp))
                 }
             }
         }

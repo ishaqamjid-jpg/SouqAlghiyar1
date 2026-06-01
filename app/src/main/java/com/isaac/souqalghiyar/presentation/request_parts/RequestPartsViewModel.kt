@@ -28,6 +28,10 @@ class RequestPartsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(RequestUiState())
     val uiState: StateFlow<RequestUiState> = _uiState.asStateFlow()
 
+    // قائمة القطع المضافة للجدول
+    private val _itemsList = MutableStateFlow<List<OrderItem>>(emptyList())
+    val itemsList: StateFlow<List<OrderItem>> = _itemsList.asStateFlow()
+
     // Form States
     var partName = MutableStateFlow("")
     var qualityType = MutableStateFlow("")
@@ -47,14 +51,60 @@ class RequestPartsViewModel @Inject constructor(
         }
     }
 
-    fun submitOrder(userId: String, vehicleName: String, vehicleModel: String, picVinNumber: String) {
+    // دالة إضافة القطعة للجدول المحلي
+    fun addItemToTable() {
         val qty = quantity.value.toIntOrNull() ?: 0
+        if (partName.value.isBlank() || qualityType.value.isBlank() || qty <= 0) {
+            _uiState.value = _uiState.value.copy(error = "يرجى إدخال اسم القطعة، الجودة، والتأكد من العدد")
+            return
+        }
 
-        // Validation
-        if (partName.value.isBlank()) { _uiState.value = _uiState.value.copy(error = "يرجى تحديد اسم القطعة"); return }
-        if (qualityType.value.isBlank()) { _uiState.value = _uiState.value.copy(error = "يرجى تحديد جودة القطعة"); return }
-        if (qty <= 0) { _uiState.value = _uiState.value.copy(error = "يجب أن يكون العدد 1 على الأقل"); return }
-        if (deliveryLocation.value.isBlank()) { _uiState.value = _uiState.value.copy(error = "يرجى إدخال عنوان التوصيل"); return }
+        val newItem = OrderItem(
+            part_name = partName.value,
+            quantity = qty,
+            quality_type = qualityType.value,
+            description = description.value,
+            comments = comments.value
+        )
+
+        _itemsList.value = _itemsList.value + newItem
+
+        // تفريغ الحقول بعد الإضافة لتسهيل إضافة قطعة جديدة
+        partName.value = ""
+        quantity.value = "1"
+        description.value = ""
+        comments.value = ""
+        _uiState.value = _uiState.value.copy(error = null) // إزالة الأخطاء
+    }
+
+    // دالة إزالة قطعة من الجدول
+    fun removeItemFromTable(item: OrderItem) {
+        _itemsList.value = _itemsList.value - item
+    }
+
+    // --- الدالة الجديدة: سحب القطعة من الجدول لتعديلها ---
+    fun editItemFromTable(item: OrderItem) {
+        // 1. تعبئة الخانات ببيانات القطعة
+        partName.value = item.part_name
+        qualityType.value = item.quality_type
+        quantity.value = item.quantity.toString()
+        description.value = item.description
+        comments.value = item.comments
+
+        // 2. حذفها من الجدول مؤقتاً لكي يضيفها المستخدم بعد التعديل
+        removeItemFromTable(item)
+    }
+
+    // دالة إرسال الطلب النهائي لقاعدة البيانات
+    fun submitOrder(userId: String, vehicleName: String, vehicleModel: String, picVinNumber: String) {
+        if (_itemsList.value.isEmpty()) {
+            _uiState.value = _uiState.value.copy(error = "الجدول فارغ! يرجى إضافة قطعة واحدة على الأقل.")
+            return
+        }
+        if (deliveryLocation.value.isBlank()) {
+            _uiState.value = _uiState.value.copy(error = "يرجى إدخال عنوان التوصيل")
+            return
+        }
 
         _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
@@ -66,16 +116,8 @@ class RequestPartsViewModel @Inject constructor(
             delivery_location = deliveryLocation.value
         )
 
-        val item = OrderItem(
-            part_name = partName.value,
-            quantity = qty,
-            quality_type = qualityType.value,
-            description = description.value,
-            comments = comments.value
-        )
-
         viewModelScope.launch {
-            repository.submitOrderWithItem(order, item).fold(
+            repository.submitOrderWithItems(order, _itemsList.value).fold(
                 onSuccess = { _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true) },
                 onFailure = { _uiState.value = _uiState.value.copy(isLoading = false, error = it.message) }
             )

@@ -9,6 +9,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
@@ -45,7 +46,7 @@ class OrderRepositoryImpl @Inject constructor(
                     transaction.set(itemRef, finalItem)
                 }
 
-                null // الـ Transaction تتطلب إرجاع قيمة
+                true // حل مشكلة الخطأ (بدلاً من null، نرجع true ليتمكن المترجم من تحديد النوع)
             }.await()
 
             Result.success(Unit)
@@ -76,28 +77,35 @@ class OrderRepositoryImpl @Inject constructor(
                 }
 
                 if (snapshot != null) {
-                    val orderList = mutableListOf<OrderWithItems>()
-                    
                     if (snapshot.isEmpty) {
-                        trySend(emptyList()).isSuccess
+                        trySend(emptyList())
                         return@addSnapshotListener
                     }
 
-                    // جلب البيانات لكل طلب والبحث عن قطعه
-                    snapshot.documents.forEach { doc ->
-                        val order = doc.toObject(Order::class.java)?.copy(order_id = doc.id)
-                        if (order != null) {
-                            db.collection("orders").document(order.order_id)
-                                .collection("items")
-                                .get()
-                                .addOnSuccessListener { itemsSnapshot ->
-                                    val items = itemsSnapshot.documents.mapNotNull { itemDoc -> 
-                                        itemDoc.toObject(OrderItem::class.java)?.copy(item_id = itemDoc.id) 
+                    // الحل الاحترافي: إطلاق كوروتين لجلب كل القطع الفرعية بالتزامن
+                    launch {
+                        try {
+                            val orderList = snapshot.documents.mapNotNull { doc ->
+                                val order = doc.toObject(Order::class.java)?.copy(order_id = doc.id)
+                                if (order != null) {
+                                    // نستخدم await() بدلاً من addOnSuccessListener لضمان الترتيب
+                                    val itemsSnapshot = db.collection("orders").document(order.order_id)
+                                        .collection("items")
+                                        .get()
+                                        .await()
+
+                                    val items = itemsSnapshot.documents.mapNotNull { itemDoc ->
+                                        itemDoc.toObject(OrderItem::class.java)?.copy(item_id = itemDoc.id)
                                     }
-                                    orderList.add(OrderWithItems(order, items))
-                                    // إرسال البيانات مرتبة من الأحدث للأقدم
-                                    trySend(orderList.sortedByDescending { it.order.created_at }).isSuccess
+                                    OrderWithItems(order, items)
+                                } else {
+                                    null
                                 }
+                            }
+                            // إرسال القائمة كاملة ومكتملة إلى الواجهة دفعة واحدة
+                            trySend(orderList.sortedByDescending { it.order.created_at })
+                        } catch (e: Exception) {
+                            e.printStackTrace()
                         }
                     }
                 }

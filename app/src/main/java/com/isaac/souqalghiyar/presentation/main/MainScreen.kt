@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.*
@@ -20,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -27,30 +29,31 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.isaac.souqalghiyar.domain.model.Advertisement
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.isaac.souqalghiyar.domain.model.Advertisement
+import android.widget.Toast
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     userId: String,
-    viewModel: MainViewModel = hiltViewModel(), // ربط الـ ViewModel الخاص بالإعلانات
-    navigateToRequestParts: (String, String, String) -> Unit, // نمرر اسم وموديل السيارة ورابط الصورة
+    viewModel: MainViewModel = hiltViewModel(),
+    navigateToRequestParts: (String, String, String) -> Unit,
     navigateToOrders: () -> Unit
 ) {
-    // جمع قائمة الإعلانات من قاعدة البيانات (إذا كانت جاهزة في الـ ViewModel)
     val adsList by viewModel.adsList.collectAsState()
+    val context = LocalContext.current
 
-    // متغيرات حالة حقول إدخال المركبة
     var carName by remember { mutableStateOf("") }
     var carModel by remember { mutableStateOf("") }
+    var extractedVinNumber by remember { mutableStateOf("") } // النص الذي سيستخرجه الذكاء الاصطناعي من الصورة
+
+    var isImageUploaded by remember { mutableStateOf(false) } // للتحكم في شكل مربع الكاميرا
     var isAnalyzing by remember { mutableStateOf(false) }
-    var vinPicUrl by remember { mutableStateOf("") } // سيحفظ رابط الصورة مستقبلاً
-    
+
     val coroutineScope = rememberCoroutineScope()
 
-    // إجبار اتجاه الواجهة RTL لتتناسب مع اللغة العربية
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Scaffold(
             topBar = {
@@ -77,13 +80,13 @@ fun MainScreen(
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                
+
                 // 1. بطاقة الإعلانات المتحركة
                 AnimatedAdsCard(ads = adsList)
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // 2. خانات اسم السيارة والموديل (مغلقة ولا يمكن تعبئتها يدوياً)
+                // 2. خانات اسم السيارة والموديل (مغلقة وتتعبأ آلياً)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -92,7 +95,7 @@ fun MainScreen(
                         value = carName,
                         onValueChange = {},
                         label = { Text("اسم السيارة") },
-                        enabled = false, // يمنع التعديل اليدوي
+                        enabled = false,
                         modifier = Modifier.weight(1f),
                         colors = OutlinedTextFieldDefaults.colors(
                             disabledTextColor = Color.Black,
@@ -104,7 +107,7 @@ fun MainScreen(
                         value = carModel,
                         onValueChange = {},
                         label = { Text("الموديل") },
-                        enabled = false, // يمنع التعديل اليدوي
+                        enabled = false,
                         modifier = Modifier.weight(1f),
                         colors = OutlinedTextFieldDefaults.colors(
                             disabledTextColor = Color.Black,
@@ -116,42 +119,51 @@ fun MainScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 3. خانة إدراج صورة رقم القعّادة
+                // 3. مربع التقاط الصورة (كما طلبت، يبقى لرفع الصورة فقط)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(120.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFE0E0E0))
-                        .clickable { 
-                            // لاحقاً هنا كود لفتح الكاميرا ورفع الصورة للفايربيز
-                            vinPicUrl = "mock_image_url" 
+                        .background(if (isImageUploaded) Color(0xFFC8E6C9) else Color(0xFFE0E0E0)) // يتغير للأخضر الفاتح عند الإرفاق
+                        .clickable {
+                            // محاكاة قيام المستخدم بفتح الكاميرا والتقاط صورة
+                            isImageUploaded = true
                         },
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
-                            imageVector = Icons.Default.PhotoCamera,
+                            imageVector = if (isImageUploaded) Icons.Default.CheckCircle else Icons.Default.PhotoCamera,
                             contentDescription = "الكاميرا",
-                            tint = Color.Gray,
+                            tint = if (isImageUploaded) Color(0xFF2E7D32) else Color.Gray,
                             modifier = Modifier.size(40.dp)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("إدراج صورة لرقم القعّادة", color = Color.DarkGray)
+                        Text(
+                            text = if (isImageUploaded) "تم إرفاق الصورة بنجاح" else "التقط صورة لرقم القعّادة",
+                            color = if (isImageUploaded) Color(0xFF2E7D32) else Color.DarkGray,
+                            fontWeight = if (isImageUploaded) FontWeight.Bold else FontWeight.Normal
+                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // 4. زر عرض نوع المركبة (تحليل مؤقت كأنه ذكاء اصطناعي)
+                // 4. زر الذكاء الاصطناعي (يستخرج البيانات والنص ويرمي الصورة)
                 Button(
                     onClick = {
+                        if (!isImageUploaded) {
+                            Toast.makeText(context, "يرجى التقاط صورة رقم القعادة أولاً", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
                         isAnalyzing = true
-                        // محاكاة الاتصال بالنت أو الذكاء الاصطناعي لتحليل الصورة
                         coroutineScope.launch {
-                            delay(2500) // انتظار وهمي لمدة ثانيتين ونصف
-                            carName = "تويوتا لاندكروزر" // تعبئة أوتوماتيكية
-                            carModel = "2023" // تعبئة أوتوماتيكية
+                            delay(2500) // محاكاة وقت تحليل ML Kit للصورة
+                            carName = "تويوتا لاندكروزر"
+                            carModel = "2023"
+                            extractedVinNumber = "JTD1234567890ABCD" // 👈 هنا استخرجنا الرقم كنص ولن نحتاج للصورة بعد الآن
                             isAnalyzing = false
                         }
                     },
@@ -164,17 +176,17 @@ fun MainScreen(
                     if (isAnalyzing) {
                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                     } else {
-                        Text("عرض نوع المركبة", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("تحليل الصورة واستخراج البيانات", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // 5. زر طلب قطع الغيار في أسفل الشاشة (يُفعل فقط إذا تعرّف على السيارة)
+                // 5. زر طلب قطع الغيار في أسفل الشاشة
                 Button(
-                    onClick = { 
-                        // تمرير البيانات المجلوبة للشاشة التالية الخاصة بجدول القطع
-                        navigateToRequestParts(carName, carModel, vinPicUrl.ifEmpty { "no_image" }) 
+                    onClick = {
+                        // نمرر الـ Text الذي استخرجناه من الصورة (extractedVinNumber) بدلاً من الصورة نفسها
+                        navigateToRequestParts(carName, carModel, extractedVinNumber.ifEmpty { "غير محدد" })
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -182,7 +194,7 @@ fun MainScreen(
                         .shadow(4.dp, RoundedCornerShape(12.dp)),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D1B6D)),
-                    enabled = carName.isNotEmpty() 
+                    enabled = carName.isNotEmpty()
                 ) {
                     Text("طلب قطع غيار", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
@@ -191,7 +203,6 @@ fun MainScreen(
     }
 }
 
-// مكون منفصل لبطاقة الإعلانات المتحركة
 @Composable
 fun AnimatedAdsCard(ads: List<Advertisement>) {
     val infiniteTransition = rememberInfiniteTransition(label = "ads_animation")
@@ -205,10 +216,8 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
         label = "scale"
     )
 
-    // مؤشر للإعلان الحالي
     var currentIndex by remember { mutableIntStateOf(0) }
 
-    // تغيير الإعلان كل 3 ثوانٍ إذا كان هناك أكثر من إعلان متاح
     LaunchedEffect(ads) {
         if (ads.isNotEmpty() && ads.size > 1) {
             while (true) {
@@ -234,7 +243,6 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
             contentAlignment = Alignment.Center
         ) {
             if (ads.isEmpty()) {
-                // حالة افتراضية حتى يتم جلب البيانات
                 Text(
                     text = "جارِ تحميل العروض...",
                     color = Color.White,
@@ -242,7 +250,6 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
                     fontSize = 18.sp
                 )
             } else {
-                // أنيميشن ناعم عند التبديل بين نصوص الإعلانات
                 AnimatedContent(
                     targetState = currentIndex,
                     transitionSpec = { fadeIn(tween(500)) togetherWith fadeOut(tween(500)) },
