@@ -12,4 +12,9 @@ interface OrderRepository {
     // الإضافة الجديدة هنا:
     fun getUserOrders(userId: String): Flow<List<OrderWithItems>>
     suspend fun updateOrderStatus(orderId: String, newStatus: String): Result<Unit>
+
+    // تم التعديل لتستقبل قائمة من القطع (items) بدلاً من قطعة واحدة
+    suspend fun submitOrderWithItems(order: Order, items: List<OrderItem>): Result<Unit>
+
+
 }
