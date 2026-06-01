@@ -1,204 +1,284 @@
-package com.isaac.souqalghiyar.presentation.orders
+package com.isaac.souqalghiyar.presentation.request_parts
 
+import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.isaac.souqalghiyar.domain.model.OrderWithItems
-import androidx.compose.foundation.BorderStroke
+import com.isaac.souqalghiyar.domain.model.OrderItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OrdersScreen(
+fun RequestPartsScreen(
     userId: String,
-    viewModel: OrdersViewModel = hiltViewModel(),
+    vehicleName: String,
+    vehicleModel: String,
+    picVinNumber: String,
+    viewModel: RequestPartsViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit
 ) {
-    val orders by viewModel.orders.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
+    val itemsList by viewModel.itemsList.collectAsState()
+    val context = LocalContext.current
 
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("الطلبات المعلقة", "الطلبات السابقة")
+    // Observe form fields
+    val partName by viewModel.partName.collectAsState()
+    val qualityType by viewModel.qualityType.collectAsState()
+    val quantity by viewModel.quantity.collectAsState()
+    val description by viewModel.description.collectAsState()
+    val comments by viewModel.comments.collectAsState()
+    val deliveryLocation by viewModel.deliveryLocation.collectAsState()
 
-    LaunchedEffect(userId) {
-        viewModel.fetchUserOrders(userId)
+    var expandedPart by remember { mutableStateOf(false) }
+    var expandedQuality by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.isSuccess) {
+        if (uiState.isSuccess) {
+            Toast.makeText(context, "تم رفع الطلب والفاتورة بنجاح!", Toast.LENGTH_LONG).show()
+            onNavigateBack()
+        }
+    }
+
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
     }
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("طلباتي", fontWeight = FontWeight.Bold) },
+                    title = { Text("طلب قطع غيار", fontWeight = FontWeight.Bold) },
                     navigationIcon = {
-                        IconButton(onClick = onNavigateBack) { Icon(Icons.Default.ArrowBack, contentDescription = "رجوع", tint = Color.White) }
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "رجوع", tint = Color.White)
+                        }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0D1B6D), titleContentColor = Color.White)
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color(0xFF0D1B6D),
+                        titleContentColor = Color.White
+                    )
                 )
             },
             containerColor = Color(0xFFF5F5F5)
-        ) { padding ->
-            Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-                // 1. التبويبات (Tabs)
-                TabRow(
-                    selectedTabIndex = selectedTabIndex,
-                    containerColor = Color.White,
-                    contentColor = Color(0xFF0D1B6D),
-                    indicator = { tabPositions ->
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                            color = Color(0xFF0D1B6D),
-                            height = 3.dp
-                        )
-                    }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // رأس بيانات المركبة
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.White,
+                    shadowElevation = 2.dp
                 ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTabIndex == index,
-                            onClick = { selectedTabIndex = index },
-                            text = { Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp) }
-                        )
-                    }
+                    Text(
+                        text = "المركبة: $vehicleName - $vehicleModel",
+                        modifier = Modifier.padding(16.dp),
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0D1B6D),
+                        fontSize = 16.sp
+                    )
                 }
 
-                // 2. المحتوى بناءً على التبويب
-                if (isLoading) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFF0D1B6D)) }
-                } else {
-                    val pendingStatuses = listOf("pending", "priced")
-                    val filteredOrders = if (selectedTabIndex == 0) {
-                        orders.filter { it.order.order_status in pendingStatuses }
-                    } else {
-                        orders.filter { it.order.order_status !in pendingStatuses }
-                    }
+                Spacer(modifier = Modifier.height(16.dp))
 
-                    if (filteredOrders.isEmpty()) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("لا توجد طلبات في هذا القسم", color = Color.Gray, fontSize = 16.sp)
-                        }
-                    } else {
-                        LazyColumn(
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            items(filteredOrders) { orderWithItems ->
-                                OrderCard(orderWithItems, userId, viewModel)
+                // --- قسم 1: بطاقة إدخال القطعة ---
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(2.dp)
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("بيانات القطعة الجديدة", fontWeight = FontWeight.Bold, color = Color.Gray)
+                        Spacer(Modifier.height(12.dp))
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ExposedDropdownMenuBox(
+                                expanded = expandedPart,
+                                onExpandedChange = { expandedPart = !expandedPart },
+                                modifier = Modifier.weight(2f)
+                            ) {
+                                OutlinedTextField(
+                                    value = partName,
+                                    onValueChange = { viewModel.partName.value = it },
+                                    label = { Text("الاسم *") },
+                                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                    singleLine = true
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = expandedPart,
+                                    onDismissRequest = { expandedPart = false }
+                                ) {
+                                    uiState.categories.filter { it.contains(partName, ignoreCase = true) }.forEach { opt ->
+                                        DropdownMenuItem(text = { Text(opt) }, onClick = { viewModel.partName.value = opt; expandedPart = false })
+                                    }
+                                }
+                            }
+
+                            ExposedDropdownMenuBox(
+                                expanded = expandedQuality,
+                                onExpandedChange = { expandedQuality = !expandedQuality },
+                                modifier = Modifier.weight(1.5f)
+                            ) {
+                                OutlinedTextField(
+                                    value = qualityType,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("الجودة *") },
+                                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedQuality) }
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = expandedQuality,
+                                    onDismissRequest = { expandedQuality = false }
+                                ) {
+                                    uiState.qualityTypes.forEach { opt ->
+                                        DropdownMenuItem(text = { Text(opt) }, onClick = { viewModel.qualityType.value = opt; expandedQuality = false })
+                                    }
+                                }
                             }
                         }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = quantity,
+                                onValueChange = { viewModel.quantity.value = it },
+                                label = { Text("العدد *") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = description,
+                                onValueChange = { viewModel.description.value = it },
+                                label = { Text("وصف إضافي (اختياري)") },
+                                modifier = Modifier.weight(2f)
+                            )
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = comments,
+                            onValueChange = { viewModel.comments.value = it },
+                            label = { Text("ملاحظات") },
+                            modifier = Modifier.fillMaxWidth().height(80.dp)
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+                        Button(
+                            onClick = { viewModel.addItemToTable() },
+                            modifier = Modifier.fillMaxWidth().height(45.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF42A5F5)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("إضافة القطعة للجدول", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
-            }
-        }
-    }
-}
 
-@Composable
-fun OrderCard(data: OrderWithItems, userId: String, viewModel: OrdersViewModel) {
-    val order = data.order
-    val items = data.items
-    
-    // حساب الإجمالي (مجموع القطع + رسوم التوصيل)
-    val totalItemsPrice = items.sumOf { it.selling_price * it.quantity }
-    val grandTotal = totalItemsPrice + order.delivery_fees
+                Spacer(modifier = Modifier.height(24.dp))
 
-    val statusColor = when(order.order_status) {
-        "pending" -> Color(0xFFFFA000) // برتقالي (قيد المراجعة)
-        "priced" -> Color(0xFF2196F3) // أزرق (تم التسعير - يتطلب موافقة)
-        "ongoing" -> Color(0xFF9C27B0) // بنفسجي (جاري التوصيل)
-        "completed" -> Color(0xFF4CAF50) // أخضر (مكتمل)
-        "canceled" -> Color(0xFFF44336) // أحمر (ملغى)
-        else -> Color.Gray
-    }
+                // --- قسم 2: جدول القطع المضافة ---
+                if (itemsList.isNotEmpty()) {
+                    Column(Modifier.padding(horizontal = 16.dp)) {
+                        Text("القطع المضافة للطلب (${itemsList.size}):", fontWeight = FontWeight.Bold, color = Color(0xFF0D1B6D))
+                        Spacer(Modifier.height(8.dp))
 
-    val statusText = when(order.order_status) {
-        "pending" -> "قيد المراجعة والتسعير"
-        "priced" -> "تم التسعير (بانتظار موافقتك)"
-        "ongoing" -> "تمت الموافقة (جاري التوصيل)"
-        "completed" -> "مكتمل"
-        "canceled" -> "ملغى"
-        else -> "غير معروف"
-    }
+                        // رأس الجدول
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF0D1B6D), RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("الصنف", modifier = Modifier.weight(2f), color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("الجودة", modifier = Modifier.weight(1.5f), color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("العدد", modifier = Modifier.weight(0.8f), color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                            Text("إزالة", modifier = Modifier.weight(0.7f), color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                        }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(3.dp)
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            // الهيدر: المركبة والحالة
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("${order.vehicle_name} - ${order.vehicle_model}", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
-                Surface(color = statusColor.copy(alpha = 0.1f), shape = RoundedCornerShape(8.dp)) {
-                    Text(statusText, color = statusColor, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                }
-            }
-            
-            HorizontalDivider(Modifier.padding(vertical = 12.dp), color = Color(0xFFEEEEEE))
-
-            // جدول القطع
-            items.forEach { item ->
-                Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("• ${item.part_name} (${item.quality_type}) x${item.quantity}", color = Color.DarkGray, fontSize = 14.sp)
-                    if (order.order_status != "pending") {
-                        Text("${item.selling_price} ريال", fontWeight = FontWeight.Bold, color = Color(0xFF0D1B6D), fontSize = 14.sp)
+                        // صفوف الجدول
+                        itemsList.forEach { item ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.White)
+                                    .border(0.5.dp, Color.LightGray)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(item.part_name, modifier = Modifier.weight(2f), fontSize = 14.sp)
+                                Text(item.quality_type, modifier = Modifier.weight(1.5f), fontSize = 14.sp, color = Color.Gray)
+                                Text(item.quantity.toString(), modifier = Modifier.weight(0.8f), fontSize = 14.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                                IconButton(
+                                    onClick = { viewModel.removeItemFromTable(item) },
+                                    modifier = Modifier.weight(0.7f).size(24.dp)
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = "حذف", tint = Color.Red)
+                                }
+                            }
+                        }
+                        // إغلاق الجدول من الأسفل
+                        Box(modifier = Modifier.fillMaxWidth().height(8.dp).background(Color.White, RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp)).border(0.5.dp, Color.LightGray))
                     }
                 }
-            }
 
-            // الإجماليات (تظهر فقط إذا تم التسعير)
-            if (order.order_status != "pending") {
-                HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Color(0xFFEEEEEE))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("رسوم التوصيل:", color = Color.Gray, fontSize = 14.sp)
-                    Text("${order.delivery_fees} ريال", color = Color.Gray, fontSize = 14.sp)
-                }
-                Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("الإجمالي النهائي:", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
-                    Text("$grandTotal ريال", fontWeight = FontWeight.ExtraBold, color = Color(0xFF4CAF50), fontSize = 16.sp)
-                }
-            }
+                Spacer(modifier = Modifier.height(24.dp))
 
-            // أزرار الموافقة والرفض (تظهر فقط في حالة priced)
-            if (order.order_status == "priced") {
-                Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                // --- قسم 3: عنوان التوصيل والإرسال النهائي ---
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    OutlinedTextField(
+                        value = deliveryLocation,
+                        onValueChange = { viewModel.deliveryLocation.value = it },
+                        label = { Text("عنوان التوصيل بالكامل *") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF0D1B6D))
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     Button(
-                        onClick = { viewModel.updateOrderStatus(order.order_id, "ongoing", userId) },
-                        modifier = Modifier.weight(1f).height(45.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
-                        shape = RoundedCornerShape(8.dp)
+                        onClick = { viewModel.submitOrder(userId, vehicleName, vehicleModel, picVinNumber) },
+                        modifier = Modifier.fillMaxWidth().height(55.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D1B6D)),
+                        enabled = !uiState.isLoading
                     ) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("موافقة واعتماد", fontWeight = FontWeight.Bold)
+                        if (uiState.isLoading) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                        } else {
+                            Text("تأكيد وطلب الفاتورة", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
-                    OutlinedButton(
-                        onClick = { viewModel.updateOrderStatus(order.order_id, "canceled", userId) },
-                        modifier = Modifier.weight(1f).height(45.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFF44336)),
-                        border = BorderStroke(1.dp, Color(0xFFF44336)),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(Icons.Default.Cancel, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("إلغاء الطلب", fontWeight = FontWeight.Bold)
-                    }
+                    Spacer(modifier = Modifier.height(30.dp))
                 }
             }
         }
