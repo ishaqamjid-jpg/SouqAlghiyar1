@@ -16,35 +16,36 @@ class OrderRepositoryImpl @Inject constructor(
     private val db: FirebaseFirestore
 ) : OrderRepository {
 
-    override suspend fun submitOrderWithItem(order: Order, item: OrderItem): Result<Unit> {
+    // 1. إرسال الطلب مع قائمة القطع (استخدام Transaction لضمان الأمان والتسلسل)
+    override suspend fun submitOrderWithItems(order: Order, items: List<OrderItem>): Result<Unit> {
         return try {
-            // مراجع الوثائق
             val counterRef = db.collection("counters").document("orders")
-            val orderRef = db.collection("orders").document()
-            val itemRef = orderRef.collection("items").document()
+            val orderRef = db.collection("orders").document() // إنشاء Auto-ID للطلب
 
-            // استخدام Transaction لضمان التسلسل وعدم التداخل
             db.runTransaction { transaction ->
-                // 1. قراءة العداد الحالي
+                // أ. قراءة العداد الحالي للطلبات
                 val snapshot = transaction.get(counterRef)
                 val currentNumber = if (snapshot.exists()) snapshot.getLong("last_number") ?: 0L else 0L
                 val newOrderNumber = currentNumber + 1
 
-                // 2. تحديث العداد في قاعدة البيانات
+                // ب. تحديث العداد في قاعدة البيانات
                 transaction.update(counterRef, "last_number", newOrderNumber)
 
-                // 3. تجهيز الطلب بالرقم الجديد والـ ID
+                // ج. تجهيز الطلب الرئيسي بالرقم المتسلسل الجديد والمعرف
                 val finalOrder = order.copy(
                     order_id = orderRef.id,
                     order_number = newOrderNumber
                 )
                 transaction.set(orderRef, finalOrder)
 
-                // 4. تجهيز القطعة وحفظها
-                val finalItem = item.copy(item_id = itemRef.id)
-                transaction.set(itemRef, finalItem)
-                
-                null // Transaction تطلب إرجاع قيمة، نعيد null للنجاح
+                // د. حفظ جميع القطع المضافة داخل الـ Subcollection الخاص بهذا الطلب
+                items.forEach { item ->
+                    val itemRef = orderRef.collection("items").document() // Auto-ID للقطعة
+                    val finalItem = item.copy(item_id = itemRef.id)
+                    transaction.set(itemRef, finalItem)
+                }
+
+                null // الـ Transaction تتطلب إرجاع قيمة
             }.await()
 
             Result.success(Unit)
@@ -54,14 +55,17 @@ class OrderRepositoryImpl @Inject constructor(
         }
     }
 
+    // 2. جلب أقسام القطع للقائمة المنسدلة
     override fun getCategories(): Flow<List<String>> = flowOf(
         listOf("ذراع أمامي", "مقص", "فحمات", "فلتر زيت", "بواجي", "صدام")
     )
 
+    // 3. جلب أنواع الجودة للقائمة المنسدلة
     override fun getQualityTypes(): Flow<List<String>> = flowOf(
         listOf("وكالة", "درجة أولى", "درجة ثانية", "تجاري صيني")
     )
 
+    // 4. جلب طلبات المستخدم مع القطع التابعة لها لعرضها في شاشة الطلبات
     override fun getUserOrders(userId: String): Flow<List<OrderWithItems>> = callbackFlow {
         val subscription = db.collection("orders")
             .whereEqualTo("user_id", userId)
@@ -74,6 +78,12 @@ class OrderRepositoryImpl @Inject constructor(
                 if (snapshot != null) {
                     val orderList = mutableListOf<OrderWithItems>()
                     
+                    if (snapshot.isEmpty) {
+                        trySend(emptyList()).isSuccess
+                        return@addSnapshotListener
+                    }
+
+                    // جلب البيانات لكل طلب والبحث عن قطعه
                     snapshot.documents.forEach { doc ->
                         val order = doc.toObject(Order::class.java)?.copy(order_id = doc.id)
                         if (order != null) {
@@ -81,8 +91,11 @@ class OrderRepositoryImpl @Inject constructor(
                                 .collection("items")
                                 .get()
                                 .addOnSuccessListener { itemsSnapshot ->
-                                    val items = itemsSnapshot.documents.mapNotNull { it.toObject(OrderItem::class.java) }
+                                    val items = itemsSnapshot.documents.mapNotNull { itemDoc -> 
+                                        itemDoc.toObject(OrderItem::class.java)?.copy(item_id = itemDoc.id) 
+                                    }
                                     orderList.add(OrderWithItems(order, items))
+                                    // إرسال البيانات مرتبة من الأحدث للأقدم
                                     trySend(orderList.sortedByDescending { it.order.created_at }).isSuccess
                                 }
                         }
@@ -92,6 +105,7 @@ class OrderRepositoryImpl @Inject constructor(
         awaitClose { subscription.remove() }
     }
 
+    // 5. تحديث حالة الطلب (عند موافقة العميل أو إلغائه)
     override suspend fun updateOrderStatus(orderId: String, newStatus: String): Result<Unit> {
         return try {
             db.collection("orders").document(orderId).update("order_status", newStatus).await()
