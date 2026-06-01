@@ -1,47 +1,113 @@
-package com.isaac.souqalghiyar.presentation.orders
+package com.isaac.souqalghiyar.presentation.request_parts
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.isaac.souqalghiyar.domain.model.OrderWithItems
+import com.isaac.souqalghiyar.domain.model.Order
+import com.isaac.souqalghiyar.domain.model.OrderItem
 import com.isaac.souqalghiyar.domain.repository.OrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class RequestUiState(
+    val isLoading: Boolean = false,
+    val isSuccess: Boolean = false,
+    val error: String? = null,
+    val categories: List<String> = emptyList(),
+    val qualityTypes: List<String> = emptyList()
+)
+
 @HiltViewModel
-class OrdersViewModel @Inject constructor(
-    private val orderRepository: OrderRepository // حقن المستودع النظيف
+class RequestPartsViewModel @Inject constructor(
+    private val repository: OrderRepository
 ) : ViewModel() {
 
-    private val _orders = MutableStateFlow<List<OrderWithItems>>(emptyList())
-    val orders: StateFlow<List<OrderWithItems>> = _orders.asStateFlow()
+    private val _uiState = MutableStateFlow(RequestUiState())
+    val uiState: StateFlow<RequestUiState> = _uiState.asStateFlow()
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    // قائمة القطع المضافة للجدول
+    private val _itemsList = MutableStateFlow<List<OrderItem>>(emptyList())
+    val itemsList: StateFlow<List<OrderItem>> = _itemsList.asStateFlow()
 
-    fun fetchUserOrders(userId: String) {
-        _isLoading.value = true
+    // Form States
+    var partName = MutableStateFlow("")
+    var qualityType = MutableStateFlow("")
+    var quantity = MutableStateFlow("1")
+    var description = MutableStateFlow("")
+    var comments = MutableStateFlow("")
+    var deliveryLocation = MutableStateFlow("")
+
+    init {
+        fetchDropdownData()
+    }
+
+    private fun fetchDropdownData() {
         viewModelScope.launch {
-            orderRepository.getUserOrders(userId)
-                .catch { e ->
-                    e.printStackTrace()
-                    _isLoading.value = false
-                }
-                .collect { orderList ->
-                    _orders.value = orderList
-                    _isLoading.value = false
-                }
+            repository.getCategories().collect { _uiState.value = _uiState.value.copy(categories = it) }
+            repository.getQualityTypes().collect { _uiState.value = _uiState.value.copy(qualityTypes = it) }
         }
     }
 
-    fun updateOrderStatus(orderId: String, newStatus: String, userId: String) {
+    // دالة إضافة القطعة للجدول المحلي
+    fun addItemToTable() {
+        val qty = quantity.value.toIntOrNull() ?: 0
+        if (partName.value.isBlank() || qualityType.value.isBlank() || qty <= 0) {
+            _uiState.value = _uiState.value.copy(error = "يرجى إدخال اسم القطعة، الجودة، والتأكد من العدد")
+            return
+        }
+
+        val newItem = OrderItem(
+            part_name = partName.value,
+            quantity = qty,
+            quality_type = qualityType.value,
+            description = description.value,
+            comments = comments.value
+        )
+
+        _itemsList.value = _itemsList.value + newItem
+
+        // تفريغ الحقول بعد الإضافة لتسهيل إضافة قطعة جديدة
+        partName.value = ""
+        quantity.value = "1"
+        description.value = ""
+        comments.value = ""
+        _uiState.value = _uiState.value.copy(error = null) // إزالة الأخطاء
+    }
+
+    // دالة إزالة قطعة من الجدول
+    fun removeItemFromTable(item: OrderItem) {
+        _itemsList.value = _itemsList.value - item
+    }
+
+    // دالة إرسال الطلب النهائي لقاعدة البيانات
+    fun submitOrder(userId: String, vehicleName: String, vehicleModel: String, picVinNumber: String) {
+        if (_itemsList.value.isEmpty()) {
+            _uiState.value = _uiState.value.copy(error = "الجدول فارغ! يرجى إضافة قطعة واحدة على الأقل.")
+            return
+        }
+        if (deliveryLocation.value.isBlank()) {
+            _uiState.value = _uiState.value.copy(error = "يرجى إدخال عنوان التوصيل")
+            return
+        }
+
+        _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+
+        val order = Order(
+            user_id = userId,
+            vehicle_name = vehicleName,
+            vehicle_model = vehicleModel,
+            pic_vin_number = picVinNumber,
+            delivery_location = deliveryLocation.value
+        )
+
         viewModelScope.launch {
-            orderRepository.updateOrderStatus(orderId, newStatus)
-            // لا نحتاج لاستدعاء fetchUserOrders لأن الـ Flow سيحدث الشاشة تلقائياً
+            repository.submitOrderWithItems(order, _itemsList.value).fold(
+                onSuccess = { _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true) },
+                onFailure = { _uiState.value = _uiState.value.copy(isLoading = false, error = it.message) }
+            )
         }
     }
 }
