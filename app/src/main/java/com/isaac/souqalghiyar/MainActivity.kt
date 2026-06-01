@@ -56,26 +56,44 @@ class MainActivity : ComponentActivity() {
                         // 2. الشاشة الرئيسية
                         composable("main/{userId}") { backStackEntry ->
                             val userId = backStackEntry.arguments?.getString("userId") ?: ""
+
                             MainScreen(
                                 userId = userId,
-                                navigateToRequestParts = { vName, vModel, vinPic -> 
-                                    // الانتقال لشاشة تعبئة القطع وتمرير بيانات السيارة
-                                    navController.navigate("request_parts/$userId/$vName/$vModel/$vinPic") 
+                                // تحديث الدالة لتستقبل الـ 5 قيم التي ترسلها MainScreen
+                                navigateToRequestParts = { make, model, year, madeIn, vin ->
+
+                                    // يفضل معالجة النصوص الفارغة أو التي تحتوي على مسافات لتجنب انهيار مسار الـ Navigation
+                                    val safeMake = if (make.isBlank()) "غير_محدد" else make.replace("/", "-")
+                                    val safeModel = if (model.isBlank()) "غير_محدد" else model.replace("/", "-")
+                                    val safeYear = if (year.isBlank()) "غير_محدد" else year
+                                    val safeMadeIn = if (madeIn.isBlank()) "غير_محدد" else madeIn.replace("/", "-")
+                                    val safeVin = if (vin.isBlank()) "غير_محدد" else vin
+
+                                    // الانتقال لشاشة تعبئة القطع وتمرير جميع بيانات السيارة
+                                    navController.navigate("request_parts/$userId/$safeMake/$safeModel/$safeYear/$safeMadeIn/$safeVin")
                                 },
-                                navigateToOrders = { 
-                                    // الانتقال لشاشة الطلبات المعلقة والسابقة
-                                    navController.navigate("orders") 
+                                navigateToOrders = {
+                                    // الانتقال لشاشة الطلبات (تأكد أن مسار الطلبات يستقبل userId إذا كان يحتاجه)
+                                    navController.navigate("orders")
                                 }
                             )
                         }
-
                         // 3. شاشة طلب قطع الغيار
-                        composable("request_parts/{userId}/{vName}/{vModel}/{vinPic}") { backStackEntry ->
+                        composable("request_parts/{userId}/{make}/{model}/{year}/{madeIn}/{vin}") { backStackEntry ->
+                            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+                            val make = backStackEntry.arguments?.getString("make") ?: ""
+                            val model = backStackEntry.arguments?.getString("model") ?: ""
+                            val year = backStackEntry.arguments?.getString("year") ?: ""
+                            val madeIn = backStackEntry.arguments?.getString("madeIn") ?: ""
+                            val vin = backStackEntry.arguments?.getString("vin") ?: ""
+
                             RequestPartsScreen(
-                                userId = backStackEntry.arguments?.getString("userId") ?: "",
-                                vehicleName = backStackEntry.arguments?.getString("vName") ?: "",
-                                vehicleModel = backStackEntry.arguments?.getString("vModel") ?: "",
-                                picVinNumber = backStackEntry.arguments?.getString("vinPic") ?: "",
+                                userId = userId,
+                                make = make,
+                                model = model,
+                                year = year,
+                                madeIn = madeIn,
+                                vin = vin,
                                 onNavigateBack = { navController.popBackStack() }
                             )
                         }

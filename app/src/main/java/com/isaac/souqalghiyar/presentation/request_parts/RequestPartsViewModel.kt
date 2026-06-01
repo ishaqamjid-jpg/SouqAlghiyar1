@@ -82,21 +82,20 @@ class RequestPartsViewModel @Inject constructor(
         _itemsList.value = _itemsList.value - item
     }
 
-    // --- الدالة الجديدة: سحب القطعة من الجدول لتعديلها ---
+    // الدالة الجديدة: سحب القطعة من الجدول لتعديلها
     fun editItemFromTable(item: OrderItem) {
-        // 1. تعبئة الخانات ببيانات القطعة
         partName.value = item.part_name
         qualityType.value = item.quality_type
         quantity.value = item.quantity.toString()
         description.value = item.description
         comments.value = item.comments
 
-        // 2. حذفها من الجدول مؤقتاً لكي يضيفها المستخدم بعد التعديل
+        // حذفها من الجدول مؤقتاً لكي يضيفها المستخدم بعد التعديل
         removeItemFromTable(item)
     }
 
-    // دالة إرسال الطلب النهائي لقاعدة البيانات
-    fun submitOrder(userId: String, vehicleName: String, vehicleModel: String, picVinNumber: String) {
+    // دالة إرسال الطلب النهائي لقاعدة البيانات (تستقبل الـ 5 متغيرات الجديدة)
+    fun submitOrder(userId: String, make: String, model: String, year: String, madeIn: String, vin: String) {
         if (_itemsList.value.isEmpty()) {
             _uiState.value = _uiState.value.copy(error = "الجدول فارغ! يرجى إضافة قطعة واحدة على الأقل.")
             return
@@ -108,11 +107,14 @@ class RequestPartsViewModel @Inject constructor(
 
         _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
+        // تجميع (الموديل + السنة + مكان التصنيع) في حقل واحد ليتوافق مع جدولك في Firebase
+        val fullModelDetails = "$model - $year - $madeIn"
+
         val order = Order(
             user_id = userId,
-            vehicle_name = vehicleName,
-            vehicle_model = vehicleModel,
-            pic_vin_number = picVinNumber,
+            vehicle_name = make,
+            vehicle_model = fullModelDetails,
+            pic_vin_number = vin,
             delivery_location = deliveryLocation.value
         )
 

@@ -34,9 +34,11 @@ import com.isaac.souqalghiyar.domain.model.OrderItem
 @Composable
 fun RequestPartsScreen(
     userId: String,
-    vehicleName: String,
-    vehicleModel: String,
-    picVinNumber: String,
+    make: String,
+    model: String,
+    year: String,
+    madeIn: String,
+    vin: String,
     viewModel: RequestPartsViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit
 ) {
@@ -45,7 +47,6 @@ fun RequestPartsScreen(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
 
-    // Observe form fields
     val partName by viewModel.partName.collectAsState()
     val qualityType by viewModel.qualityType.collectAsState()
     val quantity by viewModel.quantity.collectAsState()
@@ -56,11 +57,10 @@ fun RequestPartsScreen(
     var expandedPart by remember { mutableStateOf(false) }
     var expandedQuality by remember { mutableStateOf(false) }
 
-    // --- توحيد ألوان الخانات ليكون الخط أسود وواضح دائماً ---
     val customTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Color.Black,
         unfocusedTextColor = Color.Black,
-        disabledTextColor = Color.Black, // في حال كانت الخانة للقراءة فقط
+        disabledTextColor = Color.Black,
         focusedBorderColor = Color(0xFF0D1B6D),
         unfocusedBorderColor = Color.Gray,
         focusedLabelColor = Color(0xFF0D1B6D),
@@ -95,23 +95,23 @@ fun RequestPartsScreen(
                     )
                 )
             },
-            containerColor = Color(0xFFF5F5F5) // لون خلفية الشاشة
+            containerColor = Color(0xFFF5F5F5)
         ) { innerPadding ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .verticalScroll(rememberScrollState()), // يسمح بتمرير الشاشة للأسفل بسلاسة
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // رأس بيانات المركبة
+                // رأس بيانات المركبة (يعرض الآن كل التفاصيل الـ 5)
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = Color.White,
                     shadowElevation = 2.dp
                 ) {
                     Text(
-                        text = "المركبة: $vehicleName - $vehicleModel",
+                        text = "المركبة: $make - $model ($year) [$madeIn]",
                         modifier = Modifier.padding(16.dp),
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF0D1B6D),
@@ -143,14 +143,12 @@ fun RequestPartsScreen(
                                     value = partName,
                                     onValueChange = {
                                         viewModel.partName.value = it
-                                        expandedPart = true // يفتح القائمة عند الكتابة للبحث
+                                        expandedPart = true
                                     },
                                     label = { Text("الاسم *") },
-                                    modifier = Modifier
-                                        .menuAnchor()
-                                        .fillMaxWidth(),
+                                    modifier = Modifier.menuAnchor().fillMaxWidth(),
                                     singleLine = true,
-                                    colors = customTextFieldColors // تطبيق الألوان
+                                    colors = customTextFieldColors
                                 )
                                 ExposedDropdownMenu(
                                     expanded = expandedPart,
@@ -163,7 +161,7 @@ fun RequestPartsScreen(
                                             onClick = {
                                                 viewModel.partName.value = opt
                                                 expandedPart = false
-                                                focusManager.clearFocus() // يغلق الكيبورد لتأكيد الاختيار
+                                                focusManager.clearFocus()
                                             }
                                         )
                                     }
@@ -180,11 +178,9 @@ fun RequestPartsScreen(
                                     onValueChange = {},
                                     readOnly = true,
                                     label = { Text("الجودة *") },
-                                    modifier = Modifier
-                                        .menuAnchor()
-                                        .fillMaxWidth(),
+                                    modifier = Modifier.menuAnchor().fillMaxWidth(),
                                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedQuality) },
-                                    colors = customTextFieldColors // تطبيق الألوان
+                                    colors = customTextFieldColors
                                 )
                                 ExposedDropdownMenu(
                                     expanded = expandedQuality,
@@ -214,14 +210,14 @@ fun RequestPartsScreen(
                                 label = { Text("العدد *") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
-                                colors = customTextFieldColors // تطبيق الألوان
+                                colors = customTextFieldColors
                             )
                             OutlinedTextField(
                                 value = description,
                                 onValueChange = { viewModel.description.value = it },
                                 label = { Text("وصف إضافي (اختياري)") },
                                 modifier = Modifier.weight(2f),
-                                colors = customTextFieldColors // تطبيق الألوان
+                                colors = customTextFieldColors
                             )
                         }
 
@@ -230,10 +226,8 @@ fun RequestPartsScreen(
                             value = comments,
                             onValueChange = { viewModel.comments.value = it },
                             label = { Text("ملاحظات") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(80.dp),
-                            colors = customTextFieldColors // تطبيق الألوان
+                            modifier = Modifier.fillMaxWidth().height(80.dp),
+                            colors = customTextFieldColors
                         )
 
                         Spacer(Modifier.height(16.dp))
@@ -242,9 +236,7 @@ fun RequestPartsScreen(
                                 viewModel.addItemToTable()
                                 focusManager.clearFocus()
                             },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(45.dp),
+                            modifier = Modifier.fillMaxWidth().height(45.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF42A5F5)),
                             shape = RoundedCornerShape(8.dp)
                         ) {
@@ -267,7 +259,6 @@ fun RequestPartsScreen(
                         )
                         Spacer(Modifier.height(8.dp))
 
-                        // رأس الجدول
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -281,7 +272,6 @@ fun RequestPartsScreen(
                             Text("إزالة", modifier = Modifier.weight(0.7f), color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                         }
 
-                        // صفوف الجدول (تفاعلية وقابلة للضغط للتعديل)
                         itemsList.forEach { item ->
                             Row(
                                 modifier = Modifier
@@ -289,7 +279,6 @@ fun RequestPartsScreen(
                                     .background(Color.White)
                                     .border(0.5.dp, Color.LightGray)
                                     .clickable {
-                                        // سحب بيانات القطعة للأعلى لتعديلها
                                         viewModel.editItemFromTable(item)
                                         Toast.makeText(context, "تم سحب القطعة للتعديل", Toast.LENGTH_SHORT).show()
                                     }
@@ -301,15 +290,12 @@ fun RequestPartsScreen(
                                 Text(item.quantity.toString(), modifier = Modifier.weight(0.8f), fontSize = 14.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, color = Color.Black)
                                 IconButton(
                                     onClick = { viewModel.removeItemFromTable(item) },
-                                    modifier = Modifier
-                                        .weight(0.7f)
-                                        .size(24.dp)
+                                    modifier = Modifier.weight(0.7f).size(24.dp)
                                 ) {
                                     Icon(Icons.Default.Delete, contentDescription = "حذف", tint = Color.Red)
                                 }
                             }
                         }
-                        // إغلاق إطار الجدول من الأسفل
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -329,16 +315,14 @@ fun RequestPartsScreen(
                         onValueChange = { viewModel.deliveryLocation.value = it },
                         label = { Text("عنوان التوصيل بالكامل *") },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = customTextFieldColors // تطبيق الألوان هنا أيضاً
+                        colors = customTextFieldColors
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
-                        onClick = { viewModel.submitOrder(userId, vehicleName, vehicleModel, picVinNumber) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(55.dp),
+                        onClick = { viewModel.submitOrder(userId, make, model, year, madeIn, vin) },
+                        modifier = Modifier.fillMaxWidth().height(55.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D1B6D)),
                         enabled = !uiState.isLoading
