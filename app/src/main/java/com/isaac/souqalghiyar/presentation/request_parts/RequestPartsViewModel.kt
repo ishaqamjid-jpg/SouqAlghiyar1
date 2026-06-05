@@ -2,6 +2,7 @@ package com.isaac.souqalghiyar.presentation.request_parts
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.Timestamp
 import com.isaac.souqalghiyar.domain.model.Order
 import com.isaac.souqalghiyar.domain.model.OrderItem
 import com.isaac.souqalghiyar.domain.repository.OrderRepository
@@ -17,7 +18,8 @@ data class RequestUiState(
     val isSuccess: Boolean = false,
     val error: String? = null,
     val categories: List<String> = emptyList(),
-    val qualityTypes: List<String> = emptyList()
+    val qualityTypes: List<String> = emptyList(),
+    val locations: List<String> = emptyList()
 )
 
 @HiltViewModel
@@ -28,101 +30,114 @@ class RequestPartsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(RequestUiState())
     val uiState: StateFlow<RequestUiState> = _uiState.asStateFlow()
 
-    // قائمة القطع المضافة للجدول
     private val _itemsList = MutableStateFlow<List<OrderItem>>(emptyList())
     val itemsList: StateFlow<List<OrderItem>> = _itemsList.asStateFlow()
 
-    // Form States
-    var partName = MutableStateFlow("")
-    var qualityType = MutableStateFlow("")
-    var quantity = MutableStateFlow("1")
-    var description = MutableStateFlow("")
-    var comments = MutableStateFlow("")
-    var deliveryLocation = MutableStateFlow("")
+    val partName = MutableStateFlow("")
+    val qualityType = MutableStateFlow("")
+    val quantity = MutableStateFlow("1")
+    val description = MutableStateFlow("")
+    val comments = MutableStateFlow("")
+    
+    val location = MutableStateFlow("") // اسم المحافظة/المنطقة
+    val deliveryLocation = MutableStateFlow("") // تفاصيل العنوان
 
     init {
-        fetchDropdownData()
+        fetchConstants()
     }
 
-    private fun fetchDropdownData() {
+    private fun fetchConstants() {
         viewModelScope.launch {
-            repository.getCategories().collect { _uiState.value = _uiState.value.copy(categories = it) }
-            repository.getQualityTypes().collect { _uiState.value = _uiState.value.copy(qualityTypes = it) }
+            repository.getCategories().collect { categories ->
+                _uiState.value = _uiState.value.copy(categories = categories)
+            }
+        }
+        viewModelScope.launch {
+            repository.getQualityTypes().collect { qualities ->
+                _uiState.value = _uiState.value.copy(qualityTypes = qualities)
+            }
+        }
+        viewModelScope.launch {
+            repository.getLocations().collect { locs ->
+                _uiState.value = _uiState.value.copy(locations = locs)
+            }
         }
     }
 
-    // دالة إضافة القطعة للجدول المحلي
     fun addItemToTable() {
-        val qty = quantity.value.toIntOrNull() ?: 0
-        if (partName.value.isBlank() || qualityType.value.isBlank() || qty <= 0) {
-            _uiState.value = _uiState.value.copy(error = "يرجى إدخال اسم القطعة، الجودة، والتأكد من العدد")
+        if (partName.value.isBlank() || qualityType.value.isBlank() || quantity.value.toIntOrNull() == null || quantity.value.toInt() <= 0) {
+            _uiState.value = _uiState.value.copy(error = "يرجى تعبئة الحقول الإجبارية للقطعة وإدخال رقم صحيح للعدد.")
             return
         }
 
         val newItem = OrderItem(
             part_name = partName.value,
-            quantity = qty,
+            quantity = quantity.value.toInt(),
             quality_type = qualityType.value,
             description = description.value,
             comments = comments.value
         )
 
         _itemsList.value = _itemsList.value + newItem
+        _uiState.value = _uiState.value.copy(error = null)
 
-        // تفريغ الحقول بعد الإضافة لتسهيل إضافة قطعة جديدة
+        // تصفير الحقول للإدخال التالي
         partName.value = ""
+        qualityType.value = ""
         quantity.value = "1"
         description.value = ""
         comments.value = ""
-        _uiState.value = _uiState.value.copy(error = null) // إزالة الأخطاء
     }
 
-    // دالة إزالة قطعة من الجدول
     fun removeItemFromTable(item: OrderItem) {
         _itemsList.value = _itemsList.value - item
     }
 
-    // الدالة الجديدة: سحب القطعة من الجدول لتعديلها
     fun editItemFromTable(item: OrderItem) {
         partName.value = item.part_name
         qualityType.value = item.quality_type
         quantity.value = item.quantity.toString()
         description.value = item.description
         comments.value = item.comments
-
-        // حذفها من الجدول مؤقتاً لكي يضيفها المستخدم بعد التعديل
         removeItemFromTable(item)
     }
 
-    // دالة إرسال الطلب النهائي لقاعدة البيانات (تستقبل الـ 5 متغيرات الجديدة)
-    fun submitOrder(userId: String, make: String, model: String, year: String, madeIn: String, vin: String) {
+    fun submitOrder(userId: String, brandName: String, vehicleName: String, vehicleModel: String, manufacture: String, vinNumber: String) {
         if (_itemsList.value.isEmpty()) {
-            _uiState.value = _uiState.value.copy(error = "الجدول فارغ! يرجى إضافة قطعة واحدة على الأقل.")
+            _uiState.value = _uiState.value.copy(error = "يرجى إضافة قطعة واحدة على الأقل إلى الجدول.")
+            return
+        }
+        if (location.value.isBlank()) {
+            _uiState.value = _uiState.value.copy(error = "يرجى اختيار المنطقة / المحافظة.")
             return
         }
         if (deliveryLocation.value.isBlank()) {
-            _uiState.value = _uiState.value.copy(error = "يرجى إدخال عنوان التوصيل")
+            _uiState.value = _uiState.value.copy(error = "يرجى إدخال تفاصيل عنوان التوصيل.")
             return
         }
 
         _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
-        // تجميع (الموديل + السنة + مكان التصنيع) في حقل واحد ليتوافق مع جدولك في Firebase
-        val fullModelDetails = "$model - $year - $madeIn"
-
-        val order = Order(
+        val newOrder = Order(
             user_id = userId,
-            vehicle_name = make,
-            vehicle_model = fullModelDetails,
-            pic_vin_number = vin,
-            delivery_location = deliveryLocation.value
+            brand_name = brandName,
+            vehicle_name = vehicleName,
+            vehicle_model = vehicleModel,
+            manufacture = manufacture,
+            vin_number = vinNumber.ifEmpty { "غير محدد" },
+            location = location.value,
+            delivery_location = deliveryLocation.value,
+            created_at = Timestamp.now()
         )
 
         viewModelScope.launch {
-            repository.submitOrderWithItems(order, _itemsList.value).fold(
-                onSuccess = { _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true) },
-                onFailure = { _uiState.value = _uiState.value.copy(isLoading = false, error = it.message) }
-            )
+            val result = repository.submitOrderWithItems(newOrder, _itemsList.value)
+            if (result.isSuccess) {
+                _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
+                _itemsList.value = emptyList()
+            } else {
+                _uiState.value = _uiState.value.copy(isLoading = false, error = result.exceptionOrNull()?.message)
+            }
         }
     }
 }
