@@ -34,11 +34,11 @@ import com.isaac.souqalghiyar.domain.model.OrderItem
 @Composable
 fun RequestPartsScreen(
     userId: String,
-    make: String,
-    model: String,
-    year: String,
-    madeIn: String,
-    vin: String,
+    brandName: String,
+    vehicleName: String,
+    vehicleModel: String,
+    manufacture: String,
+    vinNumber: String,
     viewModel: RequestPartsViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit
 ) {
@@ -52,10 +52,13 @@ fun RequestPartsScreen(
     val quantity by viewModel.quantity.collectAsState()
     val description by viewModel.description.collectAsState()
     val comments by viewModel.comments.collectAsState()
+    
+    val location by viewModel.location.collectAsState()
     val deliveryLocation by viewModel.deliveryLocation.collectAsState()
 
     var expandedPart by remember { mutableStateOf(false) }
     var expandedQuality by remember { mutableStateOf(false) }
+    var expandedLocation by remember { mutableStateOf(false) }
 
     val customTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Color.Black,
@@ -89,10 +92,7 @@ fun RequestPartsScreen(
                             Icon(Icons.Default.ArrowBack, contentDescription = "رجوع", tint = Color.White)
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color(0xFF0D1B6D),
-                        titleContentColor = Color.White
-                    )
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0D1B6D), titleContentColor = Color.White)
                 )
             },
             containerColor = Color(0xFFF5F5F5)
@@ -104,28 +104,25 @@ fun RequestPartsScreen(
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // رأس بيانات المركبة (يعرض الآن كل التفاصيل الـ 5)
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = Color.White,
                     shadowElevation = 2.dp
                 ) {
-                    Text(
-                        text = "المركبة: $make - $model ($year) [$madeIn]",
-                        modifier = Modifier.padding(16.dp),
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0D1B6D),
-                        fontSize = 16.sp
-                    )
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("بيانات المركبة", fontWeight = FontWeight.Bold, color = Color(0xFF0D1B6D), fontSize = 18.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("الماركة والموديل: $brandName - $vehicleName $vehicleModel", color = Color.DarkGray)
+                        Text("مكان التصنيع: $manufacture", color = Color.DarkGray)
+                        Text("رقم القعادة: $vinNumber", color = Color.DarkGray)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // --- قسم 1: بطاقة إدخال القطعة ---
+                // بطاقة إدخال القطعة
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(2.dp)
                 ) {
@@ -222,6 +219,7 @@ fun RequestPartsScreen(
                         }
 
                         Spacer(Modifier.height(8.dp))
+
                         OutlinedTextField(
                             value = comments,
                             onValueChange = { viewModel.comments.value = it },
@@ -231,6 +229,7 @@ fun RequestPartsScreen(
                         )
 
                         Spacer(Modifier.height(16.dp))
+
                         Button(
                             onClick = {
                                 viewModel.addItemToTable()
@@ -249,21 +248,14 @@ fun RequestPartsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // --- قسم 2: جدول القطع المضافة ---
+                // جدول القطع
                 if (itemsList.isNotEmpty()) {
                     Column(Modifier.padding(horizontal = 16.dp)) {
-                        Text(
-                            "القطع المضافة للطلب (${itemsList.size}): اضغط للتعديل",
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0D1B6D)
-                        )
+                        Text("القطع المضافة للطلب (${itemsList.size}): اضغط للتعديل", fontWeight = FontWeight.Bold, color = Color(0xFF0D1B6D))
                         Spacer(Modifier.height(8.dp))
 
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFF0D1B6D), RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                                .padding(12.dp),
+                            modifier = Modifier.fillMaxWidth().background(Color(0xFF0D1B6D), RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)).padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("الصنف", modifier = Modifier.weight(2f), color = Color.White, fontWeight = FontWeight.Bold)
@@ -296,20 +288,49 @@ fun RequestPartsScreen(
                                 }
                             }
                         }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(8.dp)
-                                .background(Color.White, RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
-                                .border(0.5.dp, Color.LightGray)
-                        )
+                        Box(modifier = Modifier.fillMaxWidth().height(8.dp).background(Color.White, RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp)).border(0.5.dp, Color.LightGray))
                     }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // --- قسم 3: عنوان التوصيل والإرسال النهائي ---
+                // عنوان التوصيل
                 Column(Modifier.padding(horizontal = 16.dp)) {
+                    // المنطقه (Dropdown)
+                    ExposedDropdownMenuBox(
+                        expanded = expandedLocation,
+                        onExpandedChange = { expandedLocation = !expandedLocation },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedTextField(
+                            value = location,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("المنطقة / المحافظة *") },
+                            modifier = Modifier.menuAnchor().fillMaxWidth(),
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedLocation) },
+                            colors = customTextFieldColors
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expandedLocation,
+                            onDismissRequest = { expandedLocation = false },
+                            modifier = Modifier.background(Color.White)
+                        ) {
+                            uiState.locations.forEach { opt ->
+                                DropdownMenuItem(
+                                    text = { Text(opt, color = Color.Black) },
+                                    onClick = {
+                                        viewModel.location.value = opt
+                                        expandedLocation = false
+                                        focusManager.clearFocus()
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     OutlinedTextField(
                         value = deliveryLocation,
                         onValueChange = { viewModel.deliveryLocation.value = it },
@@ -318,10 +339,10 @@ fun RequestPartsScreen(
                         colors = customTextFieldColors
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
 
                     Button(
-                        onClick = { viewModel.submitOrder(userId, make, model, year, madeIn, vin) },
+                        onClick = { viewModel.submitOrder(userId, brandName, vehicleName, vehicleModel, manufacture, vinNumber) },
                         modifier = Modifier.fillMaxWidth().height(55.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D1B6D)),
