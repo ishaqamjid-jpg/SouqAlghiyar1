@@ -8,8 +8,6 @@ import com.isaac.souqalghiyar.domain.repository.OrderRepository
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
@@ -17,38 +15,31 @@ class OrderRepositoryImpl @Inject constructor(
     private val db: FirebaseFirestore
 ) : OrderRepository {
 
-    // 1. إرسال الطلب مع قائمة القطع (استخدام Transaction لضمان الأمان والتسلسل)
     override suspend fun submitOrderWithItems(order: Order, items: List<OrderItem>): Result<Unit> {
         return try {
             val counterRef = db.collection("counters").document("orders")
-            val orderRef = db.collection("orders").document() // إنشاء Auto-ID للطلب
+            val orderRef = db.collection("orders").document()
 
             db.runTransaction { transaction ->
-                // أ. قراءة العداد الحالي للطلبات
                 val snapshot = transaction.get(counterRef)
                 val currentNumber = if (snapshot.exists()) snapshot.getLong("last_number") ?: 0L else 0L
                 val newOrderNumber = currentNumber + 1
 
-                // ب. تحديث العداد في قاعدة البيانات
                 transaction.update(counterRef, "last_number", newOrderNumber)
 
-                // ج. تجهيز الطلب الرئيسي بالرقم المتسلسل الجديد والمعرف
                 val finalOrder = order.copy(
                     order_id = orderRef.id,
                     order_number = newOrderNumber
                 )
                 transaction.set(orderRef, finalOrder)
 
-                // د. حفظ جميع القطع المضافة داخل الـ Subcollection الخاص بهذا الطلب
                 items.forEach { item ->
-                    val itemRef = orderRef.collection("items").document() // Auto-ID للقطعة
+                    val itemRef = orderRef.collection("items").document()
                     val finalItem = item.copy(item_id = itemRef.id)
                     transaction.set(itemRef, finalItem)
                 }
-
-                true // حل مشكلة الخطأ (بدلاً من null، نرجع true ليتمكن المترجم من تحديد النوع)
+                true
             }.await()
-
             Result.success(Unit)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -56,17 +47,48 @@ class OrderRepositoryImpl @Inject constructor(
         }
     }
 
-    // 2. جلب أقسام القطع للقائمة المنسدلة
-    override fun getCategories(): Flow<List<String>> = flowOf(
-        listOf("ذراع أمامي", "مقص", "فحمات", "فلتر زيت", "بواجي", "صدام")
-    )
+    override fun getCategories(): Flow<List<String>> = callbackFlow {
+        val sub = db.collection("spare_parts_categories").addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
+            }
+            if (snapshot != null) {
+                val list = snapshot.documents.mapNotNull { it.getString("spare_parts_categories") }
+                trySend(list).isSuccess
+            }
+        }
+        awaitClose { sub.remove() }
+    }
 
-    // 3. جلب أنواع الجودة للقائمة المنسدلة
-    override fun getQualityTypes(): Flow<List<String>> = flowOf(
-        listOf("وكالة", "درجة أولى", "درجة ثانية", "تجاري صيني")
-    )
+    override fun getQualityTypes(): Flow<List<String>> = callbackFlow {
+        val sub = db.collection("quality_types").addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
+            }
+            if (snapshot != null) {
+                val list = snapshot.documents.mapNotNull { it.getString("quality_types") }
+                trySend(list).isSuccess
+            }
+        }
+        awaitClose { sub.remove() }
+    }
 
-    // 4. جلب طلبات المستخدم مع القطع التابعة لها لعرضها في شاشة الطلبات
+    override fun getLocations(): Flow<List<String>> = callbackFlow {
+        val sub = db.collection("location").addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
+            }
+            if (snapshot != null) {
+                val list = snapshot.documents.mapNotNull { it.getString("location") }
+                trySend(list).isSuccess
+            }
+        }
+        awaitClose { sub.remove() }
+    }
+
     override fun getUserOrders(userId: String): Flow<List<OrderWithItems>> = callbackFlow {
         val subscription = db.collection("orders")
             .whereEqualTo("user_id", userId)
@@ -75,45 +97,35 @@ class OrderRepositoryImpl @Inject constructor(
                     close(error)
                     return@addSnapshotListener
                 }
-
                 if (snapshot != null) {
+                    val orderList = mutableListOf<OrderWithItems>()
                     if (snapshot.isEmpty) {
-                        trySend(emptyList())
+                        trySend(emptyList()).isSuccess
                         return@addSnapshotListener
                     }
-
-                    // الحل الاحترافي: إطلاق كوروتين لجلب كل القطع الفرعية بالتزامن
-                    launch {
-                        try {
-                            val orderList = snapshot.documents.mapNotNull { doc ->
-                                val order = doc.toObject(Order::class.java)?.copy(order_id = doc.id)
-                                if (order != null) {
-                                    // نستخدم await() بدلاً من addOnSuccessListener لضمان الترتيب
-                                    val itemsSnapshot = db.collection("orders").document(order.order_id)
-                                        .collection("items")
-                                        .get()
-                                        .await()
-
+                    
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        snapshot.documents.forEach { doc ->
+                            val order = doc.toObject(Order::class.java)?.copy(order_id = doc.id)
+                            if (order != null) {
+                                try {
+                                    val itemsSnapshot = db.collection("orders").document(order.order_id).collection("items").get().await()
                                     val items = itemsSnapshot.documents.mapNotNull { itemDoc ->
                                         itemDoc.toObject(OrderItem::class.java)?.copy(item_id = itemDoc.id)
                                     }
-                                    OrderWithItems(order, items)
-                                } else {
-                                    null
+                                    orderList.add(OrderWithItems(order, items))
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
                                 }
                             }
-                            // إرسال القائمة كاملة ومكتملة إلى الواجهة دفعة واحدة
-                            trySend(orderList.sortedByDescending { it.order.created_at })
-                        } catch (e: Exception) {
-                            e.printStackTrace()
                         }
+                        trySend(orderList.sortedByDescending { it.order.created_at }).isSuccess
                     }
                 }
             }
         awaitClose { subscription.remove() }
     }
 
-    // 5. تحديث حالة الطلب (عند موافقة العميل أو إلغائه)
     override suspend fun updateOrderStatus(orderId: String, newStatus: String): Result<Unit> {
         return try {
             db.collection("orders").document(orderId).update("order_status", newStatus).await()
