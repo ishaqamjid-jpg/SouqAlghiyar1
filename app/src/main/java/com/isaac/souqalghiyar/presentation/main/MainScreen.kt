@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.isaac.souqalghiyar.domain.model.Advertisement
 import kotlinx.coroutines.delay
+import androidx.compose.animation.*
 
 val PrimaryBlue = Color(0xFF0D1B6D)
 val AccentBlue = Color(0xFF42A5F5)

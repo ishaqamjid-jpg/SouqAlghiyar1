@@ -5,9 +5,12 @@ import com.isaac.souqalghiyar.domain.model.Order
 import com.isaac.souqalghiyar.domain.model.OrderItem
 import com.isaac.souqalghiyar.domain.model.OrderWithItems
 import com.isaac.souqalghiyar.domain.repository.OrderRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
@@ -103,8 +106,9 @@ class OrderRepositoryImpl @Inject constructor(
                         trySend(emptyList()).isSuccess
                         return@addSnapshotListener
                     }
-                    
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+
+                    // استخدام CoroutineScope مع الاستيرادات الصحيحة في الأعلى
+                    CoroutineScope(Dispatchers.IO).launch {
                         snapshot.documents.forEach { doc ->
                             val order = doc.toObject(Order::class.java)?.copy(order_id = doc.id)
                             if (order != null) {

@@ -2,6 +2,7 @@ package com.isaac.souqalghiyar.domain.model
 
 import com.google.firebase.Timestamp
 
+
 data class Order(
     val order_id: String = "",
     val order_number: Long = 0L,
@@ -31,7 +32,3 @@ data class OrderItem(
     val invoice_number: String = ""
 )
 
-data class OrderWithItems(
-    val order: Order,
-    val items: List<OrderItem>
-)

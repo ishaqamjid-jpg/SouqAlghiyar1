@@ -21,10 +21,11 @@ class MainRepositoryImpl @Inject constructor(
                     return@addSnapshotListener
                 }
                 if (snapshot != null) {
+                    // جلب الإعلانات مباشرة وترتيبها برمجياً حسب الأولوية
                     val ads = snapshot.documents.mapNotNull { doc ->
-                        doc.toObject(Advertisement::class.java)?.copy(ad_id = doc.id)
+                        doc.toObject(Advertisement::class.java)
                     }.sortedByDescending { it.priority }
-                    
+
                     trySend(ads).isSuccess
                 }
             }
