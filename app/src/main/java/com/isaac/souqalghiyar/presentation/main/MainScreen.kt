@@ -1,12 +1,6 @@
 package com.isaac.souqalghiyar.presentation.main
 
 import android.graphics.Bitmap
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
@@ -14,7 +8,9 @@ import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -66,26 +62,23 @@ fun MainScreen(
     navigateToOrders: () -> Unit
 ) {
     val adsList by viewModel.adsList.collectAsState()
+    val brandsList by viewModel.brandsList.collectAsState()
     val isAnalyzing by viewModel.isAnalyzing.collectAsState()
     val context = LocalContext.current
 
-    var carMake by remember { mutableStateOf("") }
-    var carModel by remember { mutableStateOf("") }
-    var carYear by remember { mutableStateOf("") }
-    var carMadeIn by remember { mutableStateOf("") }
+    var brandName by remember { mutableStateOf("") }
+    var vehicleModel by remember { mutableStateOf("") } // كورولا
+    var vehicleYear by remember { mutableStateOf("") }  // 2022
+    var manufacture by remember { mutableStateOf("") }
     var vinNumber by remember { mutableStateOf("") }
 
-    // متغير لحفظ الـ URI للصورة المختارة من الجهاز
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-    // متغير لحفظ الصورة كـ Bitmap لتمريرها للذكاء الاصطناعي
     var selectedBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-    // Launcher لاختيار صورة من الاستوديو
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         selectedImageUri = uri
-        // تحويل الـ URI إلى Bitmap بمجرد اختيار الصورة
         if (uri != null) {
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -102,10 +95,7 @@ fun MainScreen(
         }
     }
 
-    val isRequiredFieldsFilled = carMake.isNotBlank() &&
-            carModel.isNotBlank() &&
-            carYear.isNotBlank() &&
-            carMadeIn.isNotBlank()
+    val isRequiredFieldsFilled = brandName.isNotBlank() && vehicleModel.isNotBlank() && vehicleYear.isNotBlank() && manufacture.isNotBlank()
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Scaffold(
@@ -150,10 +140,10 @@ fun MainScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 CarDetailsFields(
-                    make = carMake, onMakeChange = { carMake = it },
-                    model = carModel, onModelChange = { carModel = it },
-                    year = carYear, onYearChange = { carYear = it },
-                    madeIn = carMadeIn, onMadeInChange = { carMadeIn = it },
+                    brand = brandName, onBrandChange = { brandName = it }, brandsList = brandsList,
+                    model = vehicleModel, onModelChange = { vehicleModel = it },
+                    year = vehicleYear, onYearChange = { vehicleYear = it },
+                    madeIn = manufacture, onMadeInChange = { manufacture = it },
                     vin = vinNumber, onVinChange = { vinNumber = it }
                 )
 
@@ -171,18 +161,13 @@ fun MainScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // مربع التقاط/اختيار الصورة
                 PhotoPickerBox(
                     isUploaded = selectedBitmap != null,
-                    onClick = {
-                        // فتح الاستوديو لاختيار صورة (image/*)
-                        imagePickerLauncher.launch("image/*")
-                    }
+                    onClick = { imagePickerLauncher.launch("image/*") }
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // زر التحليل الآلي
                 AnalyzeButton(
                     isImageUploaded = selectedBitmap != null,
                     isAnalyzing = isAnalyzing,
@@ -190,11 +175,11 @@ fun MainScreen(
                         selectedBitmap?.let { bitmap ->
                             viewModel.analyzeVinImageFromBitmap(
                                 bitmap = bitmap,
-                                onSuccess = { make, model, year, madeIn, vin ->
-                                    carMake = make
-                                    carModel = model
-                                    carYear = year
-                                    carMadeIn = madeIn
+                                onSuccess = { brand, model, year, madeIn, vin ->
+                                    brandName = brand
+                                    vehicleModel = model
+                                    vehicleYear = year
+                                    manufacture = madeIn
                                     vinNumber = vin
                                     Toast.makeText(context, "تم استخراج البيانات بنجاح", Toast.LENGTH_LONG).show()
                                 },
@@ -207,12 +192,11 @@ fun MainScreen(
                 )
 
                 Spacer(modifier = Modifier.height(40.dp))
-                Spacer(modifier = Modifier.weight(1f))
-
+                
                 AnimatedVisibility(visible = isRequiredFieldsFilled) {
                     Button(
                         onClick = {
-                            navigateToRequestParts(carMake, carModel, carYear, carMadeIn, vinNumber.ifEmpty { "غير محدد" })
+                            navigateToRequestParts(brandName, vehicleModel, vehicleYear, manufacture, vinNumber.ifEmpty { "غير محدد" })
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -225,22 +209,28 @@ fun MainScreen(
                         Text("طلب قطع غيار", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(20.dp))
             }
         }
     }
 }
 
-// ... (يرجى إبقاء باقي الدوال المساعدة كما هي: CarDetailsFields, PhotoPickerBox, AnalyzeButton, AnimatedAdsCard)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CarDetailsFields(
-    make: String, onMakeChange: (String) -> Unit,
+    brand: String, onBrandChange: (String) -> Unit, brandsList: List<String>,
     model: String, onModelChange: (String) -> Unit,
     year: String, onYearChange: (String) -> Unit,
     madeIn: String, onMadeInChange: (String) -> Unit,
     vin: String, onVinChange: (String) -> Unit
 ) {
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    var expandedBrand by remember { mutableStateOf(false) }
+    var expandedYear by remember { mutableStateOf(false) }
+    var expandedMadeIn by remember { mutableStateOf(false) }
+
+    val yearsList = (2000..2026).map { it.toString() }.reversed()
+    val madeInOptions = listOf("أمريكي", "خليجي", "وارد آخر")
 
     val defaultTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Color.Black,
@@ -254,18 +244,44 @@ fun CarDetailsFields(
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(
-                value = make, onValueChange = onMakeChange,
-                label = { Text("الماركة") },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                colors = defaultTextFieldColors,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
-                shape = RoundedCornerShape(12.dp)
-            )
+            // الماركة (Dropdown)
+            ExposedDropdownMenuBox(
+                expanded = expandedBrand,
+                onExpandedChange = { expandedBrand = !expandedBrand },
+                modifier = Modifier.weight(1f)
+            ) {
+                OutlinedTextField(
+                    value = brand,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("الماركة *") },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    colors = defaultTextFieldColors,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedBrand) },
+                    shape = RoundedCornerShape(12.dp)
+                )
+                ExposedDropdownMenu(
+                    expanded = expandedBrand,
+                    onDismissRequest = { expandedBrand = false },
+                    modifier = Modifier.background(Color.White)
+                ) {
+                    brandsList.forEach { opt ->
+                        DropdownMenuItem(
+                            text = { Text(opt, color = Color.Black) },
+                            onClick = {
+                                onBrandChange(opt)
+                                expandedBrand = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // نوع الموديل
             OutlinedTextField(
                 value = model, onValueChange = onModelChange,
-                label = { Text("الموديل") },
+                label = { Text("نوع الموديل *") },
+                placeholder = { Text("مثل: كورولا") },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 colors = defaultTextFieldColors,
@@ -275,24 +291,70 @@ fun CarDetailsFields(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(
-                value = year, onValueChange = onYearChange,
-                label = { Text("السنة") },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                colors = defaultTextFieldColors,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                shape = RoundedCornerShape(12.dp)
-            )
-            OutlinedTextField(
-                value = madeIn, onValueChange = onMadeInChange,
-                label = { Text("مكان التصنيع") },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                colors = defaultTextFieldColors,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
-                shape = RoundedCornerShape(12.dp)
-            )
+            // السنة (Dropdown)
+            ExposedDropdownMenuBox(
+                expanded = expandedYear,
+                onExpandedChange = { expandedYear = !expandedYear },
+                modifier = Modifier.weight(1f)
+            ) {
+                OutlinedTextField(
+                    value = year,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("السنة *") },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    colors = defaultTextFieldColors,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedYear) },
+                    shape = RoundedCornerShape(12.dp)
+                )
+                ExposedDropdownMenu(
+                    expanded = expandedYear,
+                    onDismissRequest = { expandedYear = false },
+                    modifier = Modifier.background(Color.White)
+                ) {
+                    yearsList.forEach { opt ->
+                        DropdownMenuItem(
+                            text = { Text(opt, color = Color.Black) },
+                            onClick = {
+                                onYearChange(opt)
+                                expandedYear = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // مكان التصنيع (Dropdown)
+            ExposedDropdownMenuBox(
+                expanded = expandedMadeIn,
+                onExpandedChange = { expandedMadeIn = !expandedMadeIn },
+                modifier = Modifier.weight(1f)
+            ) {
+                OutlinedTextField(
+                    value = madeIn,
+                    onValueChange = onMadeInChange, // السماح بالكتابة اليدوية إذا أراد
+                    label = { Text("مكان التصنيع *") },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    colors = defaultTextFieldColors,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMadeIn) },
+                    shape = RoundedCornerShape(12.dp)
+                )
+                ExposedDropdownMenu(
+                    expanded = expandedMadeIn,
+                    onDismissRequest = { expandedMadeIn = false },
+                    modifier = Modifier.background(Color.White)
+                ) {
+                    madeInOptions.forEach { opt ->
+                        DropdownMenuItem(
+                            text = { Text(opt, color = Color.Black) },
+                            onClick = {
+                                onMadeInChange(opt)
+                                expandedMadeIn = false
+                            }
+                        )
+                    }
+                }
+            }
         }
 
         OutlinedTextField(
@@ -312,7 +374,6 @@ fun CarDetailsFields(
 fun PhotoPickerBox(isUploaded: Boolean, onClick: () -> Unit) {
     val borderColor = if (isUploaded) SuccessGreen else Color.Gray.copy(alpha = 0.5f)
     val bgColor = if (isUploaded) LightGreen else Color.White
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -345,7 +406,6 @@ fun PhotoPickerBox(isUploaded: Boolean, onClick: () -> Unit) {
 @Composable
 fun AnalyzeButton(isImageUploaded: Boolean, isAnalyzing: Boolean, onClick: () -> Unit) {
     val context = LocalContext.current
-
     Button(
         onClick = {
             if (!isImageUploaded) {
@@ -354,9 +414,7 @@ fun AnalyzeButton(isImageUploaded: Boolean, isAnalyzing: Boolean, onClick: () ->
                 onClick()
             }
         },
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(55.dp),
+        modifier = Modifier.fillMaxWidth().height(55.dp),
         shape = RoundedCornerShape(14.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
         contentPadding = PaddingValues()
@@ -364,10 +422,7 @@ fun AnalyzeButton(isImageUploaded: Boolean, isAnalyzing: Boolean, onClick: () ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    brush = Brush.horizontalGradient(colors = listOf(AccentBlue, Color(0xFF2196F3))),
-                    shape = RoundedCornerShape(14.dp)
-                ),
+                .background(Brush.horizontalGradient(colors = listOf(AccentBlue, Color(0xFF2196F3))), shape = RoundedCornerShape(14.dp)),
             contentAlignment = Alignment.Center
         ) {
             if (isAnalyzing) {
@@ -422,7 +477,7 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(text = ads[targetIndex].title, textAlign = TextAlign.Center, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, lineHeight = 26.sp)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = ads[targetIndex].content, textAlign = TextAlign.Center, color = Color.White.copy(alpha = 0.9f), fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                        Text(text = ads[targetIndex].target_url ?: "", textAlign = TextAlign.Center, color = Color.White.copy(alpha = 0.9f), fontWeight = FontWeight.Medium, fontSize = 15.sp)
                     }
                 }
             }
