@@ -12,26 +12,37 @@ class MainRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore
 ) : MainRepository {
 
-    override suspend fun getAdvertisements(): Flow<List<Advertisement>> = callbackFlow {
+    override fun getActiveAdvertisements(): Flow<List<Advertisement>> = callbackFlow {
         val subscription = firestore.collection("advertisements")
+            .whereEqualTo("is_active", true)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     close(error)
                     return@addSnapshotListener
                 }
-
                 if (snapshot != null) {
                     val ads = snapshot.documents.mapNotNull { doc ->
-                        Advertisement(
-                            id = doc.id,
-                            title = doc.getString("title") ?: "",
-                            content = doc.getString("content") ?: ""
-                        )
-                    }
+                        doc.toObject(Advertisement::class.java)?.copy(ad_id = doc.id)
+                    }.sortedByDescending { it.priority }
+                    
                     trySend(ads).isSuccess
                 }
             }
+        awaitClose { subscription.remove() }
+    }
 
+    override fun getBrands(): Flow<List<String>> = callbackFlow {
+        val subscription = firestore.collection("brands")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    val brands = snapshot.documents.mapNotNull { it.getString("brand_name") }
+                    trySend(brands).isSuccess
+                }
+            }
         awaitClose { subscription.remove() }
     }
 }
