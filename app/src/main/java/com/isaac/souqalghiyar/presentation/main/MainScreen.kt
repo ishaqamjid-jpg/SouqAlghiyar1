@@ -9,7 +9,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,6 +32,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.isaac.souqalghiyar.domain.model.Advertisement
 import kotlinx.coroutines.delay
 import androidx.compose.animation.*
@@ -65,11 +66,13 @@ fun MainScreen(
     val adsList by viewModel.adsList.collectAsState()
     val brandsList by viewModel.brandsList.collectAsState()
     val isAnalyzing by viewModel.isAnalyzing.collectAsState()
+    val isLoadingData by viewModel.isLoadingData.collectAsState()
+    
     val context = LocalContext.current
 
     var brandName by remember { mutableStateOf("") }
-    var vehicleModel by remember { mutableStateOf("") } // كورولا
-    var vehicleYear by remember { mutableStateOf("") }  // 2022
+    var vehicleModel by remember { mutableStateOf("") } 
+    var vehicleYear by remember { mutableStateOf("") }  
     var manufacture by remember { mutableStateOf("") }
     var vinNumber by remember { mutableStateOf("") }
 
@@ -118,83 +121,94 @@ fun MainScreen(
             },
             containerColor = BackgroundGray
         ) { innerPadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 16.dp)
-                    .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Spacer(modifier = Modifier.height(16.dp))
-                AnimatedAdsCard(ads = adsList)
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text(
-                    text = "بيانات المركبة",
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Start,
-                    color = PrimaryBlue,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                CarDetailsFields(
-                    brand = brandName, onBrandChange = { brandName = it }, brandsList = brandsList,
-                    model = vehicleModel, onModelChange = { vehicleModel = it },
-                    year = vehicleYear, onYearChange = { vehicleYear = it },
-                    madeIn = manufacture, onMadeInChange = { manufacture = it },
-                    vin = vinNumber, onVinChange = { vinNumber = it }
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-                HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f))
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "لتعبئة الخانات تلقائياً يرجى إرفاق صورة لملصق الشاصي",
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                    color = Color.DarkGray,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                PhotoPickerBox(
-                    isUploaded = selectedBitmap != null,
-                    onClick = { imagePickerLauncher.launch("image/*") }
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                AnalyzeButton(
-                    isImageUploaded = selectedBitmap != null,
-                    isAnalyzing = isAnalyzing,
-                    onClick = {
-                        selectedBitmap?.let { bitmap ->
-                            viewModel.analyzeVinImageFromBitmap(
-                                bitmap = bitmap,
-                                onSuccess = { brand, model, year, madeIn, vin ->
-                                    brandName = brand
-                                    vehicleModel = model
-                                    vehicleYear = year
-                                    manufacture = madeIn
-                                    vinNumber = vin
-                                    Toast.makeText(context, "تم استخراج البيانات بنجاح", Toast.LENGTH_LONG).show()
-                                },
-                                onError = { errorMsg ->
-                                    Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
-                                }
-                            )
-                        }
+            
+            // عرض مؤشر التحميل في البداية قبل ظهور الشاشة
+            if (isLoadingData) {
+                Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = PrimaryBlue)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("جاري تحديث البيانات...", color = PrimaryBlue, fontWeight = FontWeight.Bold)
                     }
-                )
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(horizontal = 16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    AnimatedAdsCard(ads = adsList)
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                Spacer(modifier = Modifier.height(40.dp))
-                
-                AnimatedVisibility(visible = isRequiredFieldsFilled) {
+                    Text(
+                        text = "بيانات المركبة",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Start,
+                        color = PrimaryBlue,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    CarDetailsFields(
+                        brand = brandName, onBrandChange = { brandName = it }, brandsList = brandsList,
+                        model = vehicleModel, onModelChange = { vehicleModel = it },
+                        year = vehicleYear, onYearChange = { vehicleYear = it },
+                        madeIn = manufacture, onMadeInChange = { manufacture = it },
+                        vin = vinNumber, onVinChange = { vinNumber = it }
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+                    HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "لتعبئة الخانات تلقائياً يرجى إرفاق صورة لملصق الشاصي",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        color = Color.DarkGray,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    PhotoPickerBox(
+                        isUploaded = selectedBitmap != null,
+                        onClick = { imagePickerLauncher.launch("image/*") }
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    AnalyzeButton(
+                        isImageUploaded = selectedBitmap != null,
+                        isAnalyzing = isAnalyzing,
+                        onClick = {
+                            selectedBitmap?.let { bitmap ->
+                                viewModel.analyzeVinImageFromBitmap(
+                                    bitmap = bitmap,
+                                    onSuccess = { brand, model, year, madeIn, vin ->
+                                        brandName = brand
+                                        vehicleModel = model
+                                        vehicleYear = year
+                                        manufacture = madeIn
+                                        vinNumber = vin
+                                        Toast.makeText(context, "تم استخراج البيانات بنجاح", Toast.LENGTH_LONG).show()
+                                    },
+                                    onError = { errorMsg ->
+                                        Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
+                                    }
+                                )
+                            }
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(40.dp))
+                    
+                    // الزر أصبح ظاهراً دائماً، ويُغلق تفعيله وتتغير ألوانه حسب الشروط
                     Button(
                         onClick = {
                             navigateToRequestParts(brandName, vehicleModel, vehicleYear, manufacture, vinNumber.ifEmpty { "غير محدد" })
@@ -203,14 +217,24 @@ fun MainScreen(
                             .fillMaxWidth()
                             .height(60.dp)
                             .padding(bottom = 8.dp)
-                            .shadow(8.dp, RoundedCornerShape(16.dp)),
+                            .shadow(if(isRequiredFieldsFilled) 8.dp else 0.dp, RoundedCornerShape(16.dp)),
                         shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                        enabled = isRequiredFieldsFilled,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PrimaryBlue,
+                            disabledContainerColor = Color.LightGray
+                        )
                     ) {
-                        Text("طلب قطع غيار", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                        Text(
+                            "طلب قطع غيار", 
+                            fontSize = 20.sp, 
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isRequiredFieldsFilled) Color.White else Color.DarkGray
+                        )
                     }
+                    
+                    Spacer(modifier = Modifier.height(20.dp))
                 }
-                Spacer(modifier = Modifier.height(20.dp))
             }
         }
     }
@@ -245,7 +269,6 @@ fun CarDetailsFields(
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            // الماركة (Dropdown)
             ExposedDropdownMenuBox(
                 expanded = expandedBrand,
                 onExpandedChange = { expandedBrand = !expandedBrand },
@@ -278,7 +301,6 @@ fun CarDetailsFields(
                 }
             }
 
-            // نوع الموديل
             OutlinedTextField(
                 value = model, onValueChange = onModelChange,
                 label = { Text("نوع الموديل *") },
@@ -292,7 +314,6 @@ fun CarDetailsFields(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            // السنة (Dropdown)
             ExposedDropdownMenuBox(
                 expanded = expandedYear,
                 onExpandedChange = { expandedYear = !expandedYear },
@@ -325,7 +346,6 @@ fun CarDetailsFields(
                 }
             }
 
-            // مكان التصنيع (Dropdown)
             ExposedDropdownMenuBox(
                 expanded = expandedMadeIn,
                 onExpandedChange = { expandedMadeIn = !expandedMadeIn },
@@ -333,7 +353,7 @@ fun CarDetailsFields(
             ) {
                 OutlinedTextField(
                     value = madeIn,
-                    onValueChange = onMadeInChange, // السماح بالكتابة اليدوية إذا أراد
+                    onValueChange = onMadeInChange,
                     label = { Text("مكان التصنيع *") },
                     modifier = Modifier.menuAnchor().fillMaxWidth(),
                     colors = defaultTextFieldColors,
@@ -464,7 +484,7 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF2994A))
     ) {
         Box(
-            modifier = Modifier.fillMaxSize().background(Brush.linearGradient(colors = listOf(Color(0xFFF2994A), Color(0xFFF2C94C)))).padding(20.dp),
+            modifier = Modifier.fillMaxSize().background(Brush.linearGradient(colors = listOf(Color(0xFFF2994A), Color(0xFFF2C94C)))),
             contentAlignment = Alignment.Center
         ) {
             if (ads.isEmpty()) {
@@ -475,10 +495,42 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
                     transitionSpec = { fadeIn(tween(600)) togetherWith fadeOut(tween(600)) },
                     label = "ad_transition"
                 ) { targetIndex ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = ads[targetIndex].title, textAlign = TextAlign.Center, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, lineHeight = 26.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = ads[targetIndex].target_url ?: "", textAlign = TextAlign.Center, color = Color.White.copy(alpha = 0.9f), fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                    
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        // إضافة مكتبة Coil لعرض الصورة من الرابط
+                        AsyncImage(
+                            model = ads[targetIndex].image_url,
+                            contentDescription = "الإعلان",
+                            contentScale = ContentScale.Crop, // للتأكد من ملء الصورة للبطاقة
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        
+                        // طبقة شفافة داكنة (Overlay) لكي يظل النص الأبيض مقروءاً فوق أي صورة
+                        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
+                        
+                        // النصوص فوق الصورة
+                        Column(
+                            modifier = Modifier.fillMaxSize().padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = ads[targetIndex].title, 
+                                textAlign = TextAlign.Center, 
+                                color = Color.White, 
+                                fontWeight = FontWeight.ExtraBold, 
+                                fontSize = 20.sp, 
+                                lineHeight = 26.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = ads[targetIndex].target_url ?: "", 
+                                textAlign = TextAlign.Center, 
+                                color = Color.White.copy(alpha = 0.9f), 
+                                fontWeight = FontWeight.Medium, 
+                                fontSize = 15.sp
+                            )
+                        }
                     }
                 }
             }
