@@ -1,6 +1,7 @@
 package com.isaac.souqalghiyar.data.repository
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.isaac.souqalghiyar.domain.model.Order
 import com.isaac.souqalghiyar.domain.model.OrderItem
 import com.isaac.souqalghiyar.domain.model.OrderWithItems
@@ -28,7 +29,9 @@ class OrderRepositoryImpl @Inject constructor(
                 val currentNumber = if (snapshot.exists()) snapshot.getLong("last_number") ?: 0L else 0L
                 val newOrderNumber = currentNumber + 1
 
-                transaction.update(counterRef, "last_number", newOrderNumber)
+                // الحل الجذري هنا: استخدام set مع SetOptions.merge() لإنشاء المستند إن لم يكن موجوداً وتحديثه إن وجد
+                val counterData = hashMapOf<String, Any>("last_number" to newOrderNumber)
+                transaction.set(counterRef, counterData, SetOptions.merge())
 
                 val finalOrder = order.copy(
                     order_id = orderRef.id,
@@ -57,7 +60,7 @@ class OrderRepositoryImpl @Inject constructor(
                 return@addSnapshotListener
             }
             if (snapshot != null) {
-                val list = snapshot.documents.mapNotNull { it.getString("spare_parts_categories") }
+                val list = snapshot.documents.mapNotNull { it.getString("part_name") }
                 trySend(list).isSuccess
             }
         }
@@ -71,7 +74,7 @@ class OrderRepositoryImpl @Inject constructor(
                 return@addSnapshotListener
             }
             if (snapshot != null) {
-                val list = snapshot.documents.mapNotNull { it.getString("quality_types") }
+                val list = snapshot.documents.mapNotNull { it.getString("quality_name") }
                 trySend(list).isSuccess
             }
         }
@@ -107,7 +110,6 @@ class OrderRepositoryImpl @Inject constructor(
                         return@addSnapshotListener
                     }
 
-                    // استخدام CoroutineScope مع الاستيرادات الصحيحة في الأعلى
                     CoroutineScope(Dispatchers.IO).launch {
                         snapshot.documents.forEach { doc ->
                             val order = doc.toObject(Order::class.java)?.copy(order_id = doc.id)
