@@ -27,24 +27,33 @@ class MainViewModel @Inject constructor(
     private val _isAnalyzing = MutableStateFlow(false)
     val isAnalyzing: StateFlow<Boolean> = _isAnalyzing.asStateFlow()
 
+    // متغير للتحكم في شاشة الانتظار عند فتح التطبيق
+    private val _isLoadingData = MutableStateFlow(true)
+    val isLoadingData: StateFlow<Boolean> = _isLoadingData.asStateFlow()
+
     init {
-        fetchAds()
-        fetchBrands()
+        fetchInitialData()
     }
 
-    private fun fetchAds() {
+    private fun fetchInitialData() {
         viewModelScope.launch {
-            repository.getActiveAdvertisements().collect { ads ->
-                _adsList.value = ads
+            _isLoadingData.value = true
+            
+            // تشغيل جلب البيانات بالتوازي
+            launch {
+                repository.getActiveAdvertisements().collect { ads ->
+                    _adsList.value = ads
+                }
             }
-        }
-    }
-
-    private fun fetchBrands() {
-        viewModelScope.launch {
-            repository.getBrands().collect { brands ->
-                _brandsList.value = brands
+            launch {
+                repository.getBrands().collect { brands ->
+                    _brandsList.value = brands
+                }
             }
+            
+            // إعطاء وقت قصير للتأكد من جلب البيانات قبل إخفاء مؤشر التحميل
+            delay(1500)
+            _isLoadingData.value = false
         }
     }
 
