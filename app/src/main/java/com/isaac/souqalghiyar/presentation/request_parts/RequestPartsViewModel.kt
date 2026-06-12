@@ -38,9 +38,10 @@ class RequestPartsViewModel @Inject constructor(
     val quantity = MutableStateFlow("1")
     val description = MutableStateFlow("")
     val comments = MutableStateFlow("")
-    
-    val location = MutableStateFlow("") // اسم المحافظة/المنطقة
-    val deliveryLocation = MutableStateFlow("") // تفاصيل العنوان
+
+    // تم إضافة صنعاء كقيمة افتراضية
+    val location = MutableStateFlow("صنعاء")
+    val deliveryLocation = MutableStateFlow("")
 
     init {
         fetchConstants()
@@ -81,7 +82,6 @@ class RequestPartsViewModel @Inject constructor(
         _itemsList.value = _itemsList.value + newItem
         _uiState.value = _uiState.value.copy(error = null)
 
-        // تصفير الحقول للإدخال التالي
         partName.value = ""
         qualityType.value = ""
         quantity.value = "1"

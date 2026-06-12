@@ -1,143 +1,56 @@
-package com.isaac.souqalghiyar.presentation.request_parts
+package com.isaac.souqalghiyar.presentation.orders
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.Timestamp
-import com.isaac.souqalghiyar.domain.model.Order
-import com.isaac.souqalghiyar.domain.model.OrderItem
+import com.isaac.souqalghiyar.domain.model.OrderWithItems
 import com.isaac.souqalghiyar.domain.repository.OrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class RequestUiState(
-    val isLoading: Boolean = false,
-    val isSuccess: Boolean = false,
-    val error: String? = null,
-    val categories: List<String> = emptyList(),
-    val qualityTypes: List<String> = emptyList(),
-    val locations: List<String> = emptyList()
-)
-
 @HiltViewModel
-class RequestPartsViewModel @Inject constructor(
-    private val repository: OrderRepository
+class OrdersViewModel @Inject constructor(
+    private val orderRepository: OrderRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(RequestUiState())
-    val uiState: StateFlow<RequestUiState> = _uiState.asStateFlow()
+    private val _orders = MutableStateFlow<List<OrderWithItems>>(emptyList())
+    val orders: StateFlow<List<OrderWithItems>> = _orders.asStateFlow()
 
-    private val _itemsList = MutableStateFlow<List<OrderItem>>(emptyList())
-    val itemsList: StateFlow<List<OrderItem>> = _itemsList.asStateFlow()
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    val partName = MutableStateFlow("")
-    val qualityType = MutableStateFlow("")
-    val quantity = MutableStateFlow("1")
-    val description = MutableStateFlow("")
-    val comments = MutableStateFlow("")
-    
-    // التعديل هنا: جعل صنعاء هي القيمة الافتراضية
-    val location = MutableStateFlow("صنعاء") 
-    val deliveryLocation = MutableStateFlow("")
+    private var fetchJob: Job? = null
 
-    init {
-        fetchConstants()
-    }
-
-    private fun fetchConstants() {
-        viewModelScope.launch {
-            repository.getCategories().collect { categories ->
-                _uiState.value = _uiState.value.copy(categories = categories)
-            }
-        }
-        viewModelScope.launch {
-            repository.getQualityTypes().collect { qualities ->
-                _uiState.value = _uiState.value.copy(qualityTypes = qualities)
-            }
-        }
-        viewModelScope.launch {
-            repository.getLocations().collect { locs ->
-                _uiState.value = _uiState.value.copy(locations = locs)
-            }
-        }
-    }
-
-    fun addItemToTable() {
-        if (partName.value.isBlank() || qualityType.value.isBlank() || quantity.value.toIntOrNull() == null || quantity.value.toInt() <= 0) {
-            _uiState.value = _uiState.value.copy(error = "يرجى تعبئة الحقول الإجبارية للقطعة وإدخال رقم صحيح للعدد.")
+    fun fetchUserOrders(userId: String) {
+        // إذا كان المعرف فارغاً، أوقف التحميل ولا تعلق الشاشة
+        if (userId.isBlank()) {
+            _isLoading.value = false
             return
         }
 
-        val newItem = OrderItem(
-            part_name = partName.value,
-            quantity = quantity.value.toInt(),
-            quality_type = qualityType.value,
-            description = description.value,
-            comments = comments.value
-        )
-
-        _itemsList.value = _itemsList.value + newItem
-        _uiState.value = _uiState.value.copy(error = null)
-
-        partName.value = ""
-        qualityType.value = ""
-        quantity.value = "1"
-        description.value = ""
-        comments.value = ""
+        fetchJob?.cancel() // إلغاء أي بحث سابق لمنع تداخل البيانات
+        fetchJob = viewModelScope.launch {
+            _isLoading.value = true
+            orderRepository.getUserOrders(userId)
+                .catch { e ->
+                    e.printStackTrace()
+                    _isLoading.value = false
+                }
+                .collect { orderList ->
+                    _orders.value = orderList
+                    _isLoading.value = false
+                }
+        }
     }
 
-    fun removeItemFromTable(item: OrderItem) {
-        _itemsList.value = _itemsList.value - item
-    }
-
-    fun editItemFromTable(item: OrderItem) {
-        partName.value = item.part_name
-        qualityType.value = item.quality_type
-        quantity.value = item.quantity.toString()
-        description.value = item.description
-        comments.value = item.comments
-        removeItemFromTable(item)
-    }
-
-    fun submitOrder(userId: String, brandName: String, vehicleName: String, vehicleModel: String, manufacture: String, vinNumber: String) {
-        if (_itemsList.value.isEmpty()) {
-            _uiState.value = _uiState.value.copy(error = "يرجى إضافة قطعة واحدة على الأقل إلى الجدول.")
-            return
-        }
-        if (location.value.isBlank()) {
-            _uiState.value = _uiState.value.copy(error = "يرجى اختيار المنطقة / المحافظة.")
-            return
-        }
-        if (deliveryLocation.value.isBlank()) {
-            _uiState.value = _uiState.value.copy(error = "يرجى إدخال تفاصيل عنوان التوصيل.")
-            return
-        }
-
-        _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-
-        val newOrder = Order(
-            user_id = userId,
-            brand_name = brandName,
-            vehicle_name = vehicleName,
-            vehicle_model = vehicleModel,
-            manufacture = manufacture,
-            vin_number = vinNumber.ifEmpty { "غير محدد" },
-            location = location.value,
-            delivery_location = deliveryLocation.value,
-            created_at = Timestamp.now()
-        )
-
+    fun updateStatus(orderId: String, newStatus: String) {
         viewModelScope.launch {
-            val result = repository.submitOrderWithItems(newOrder, _itemsList.value)
-            if (result.isSuccess) {
-                _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
-                _itemsList.value = emptyList()
-            } else {
-                _uiState.value = _uiState.value.copy(isLoading = false, error = result.exceptionOrNull()?.message)
-            }
+            orderRepository.updateOrderStatus(orderId, newStatus)
         }
     }
 }

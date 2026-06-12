@@ -6,8 +6,6 @@ import com.isaac.souqalghiyar.domain.model.Order
 import com.isaac.souqalghiyar.domain.model.OrderItem
 import com.isaac.souqalghiyar.domain.model.OrderWithItems
 import com.isaac.souqalghiyar.domain.repository.OrderRepository
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -29,7 +27,6 @@ class OrderRepositoryImpl @Inject constructor(
                 val currentNumber = if (snapshot.exists()) snapshot.getLong("last_number") ?: 0L else 0L
                 val newOrderNumber = currentNumber + 1
 
-                // الحل الجذري هنا: استخدام set مع SetOptions.merge() لإنشاء المستند إن لم يكن موجوداً وتحديثه إن وجد
                 val counterData = hashMapOf<String, Any>("last_number" to newOrderNumber)
                 transaction.set(counterRef, counterData, SetOptions.merge())
 
@@ -60,7 +57,7 @@ class OrderRepositoryImpl @Inject constructor(
                 return@addSnapshotListener
             }
             if (snapshot != null) {
-                val list = snapshot.documents.mapNotNull { it.getString("part_name") }
+                val list = snapshot.documents.mapNotNull { it.getString("spare_parts_categories") }
                 trySend(list).isSuccess
             }
         }
@@ -74,7 +71,7 @@ class OrderRepositoryImpl @Inject constructor(
                 return@addSnapshotListener
             }
             if (snapshot != null) {
-                val list = snapshot.documents.mapNotNull { it.getString("quality_name") }
+                val list = snapshot.documents.mapNotNull { it.getString("quality_types") }
                 trySend(list).isSuccess
             }
         }
@@ -103,29 +100,33 @@ class OrderRepositoryImpl @Inject constructor(
                     close(error)
                     return@addSnapshotListener
                 }
-                if (snapshot != null) {
-                    val orderList = mutableListOf<OrderWithItems>()
-                    if (snapshot.isEmpty) {
-                        trySend(emptyList()).isSuccess
-                        return@addSnapshotListener
-                    }
 
-                    CoroutineScope(Dispatchers.IO).launch {
-                        snapshot.documents.forEach { doc ->
+                if (snapshot == null || snapshot.isEmpty) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+
+                // استخدمنا launch المدمج مع callbackFlow لضمان دورة الحياة الصحيحة للمسار
+                launch {
+                    try {
+                        val orderList = mutableListOf<OrderWithItems>()
+
+                        for (doc in snapshot.documents) {
                             val order = doc.toObject(Order::class.java)?.copy(order_id = doc.id)
                             if (order != null) {
-                                try {
-                                    val itemsSnapshot = db.collection("orders").document(order.order_id).collection("items").get().await()
-                                    val items = itemsSnapshot.documents.mapNotNull { itemDoc ->
-                                        itemDoc.toObject(OrderItem::class.java)?.copy(item_id = itemDoc.id)
-                                    }
-                                    orderList.add(OrderWithItems(order, items))
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
+                                // جلب القطع الفرعية بأمان
+                                val itemsSnapshot = db.collection("orders").document(order.order_id).collection("items").get().await()
+                                val items = itemsSnapshot.documents.mapNotNull { itemDoc ->
+                                    itemDoc.toObject(OrderItem::class.java)?.copy(item_id = itemDoc.id)
                                 }
+                                orderList.add(OrderWithItems(order, items))
                             }
                         }
-                        trySend(orderList.sortedByDescending { it.order.created_at }).isSuccess
+
+                        // إرسال البيانات المجمعة مرتبة من الأحدث للأقدم
+                        send(orderList.sortedByDescending { it.order.created_at })
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                     }
                 }
             }

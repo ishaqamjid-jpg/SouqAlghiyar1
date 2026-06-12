@@ -52,13 +52,16 @@ fun RequestPartsScreen(
     val quantity by viewModel.quantity.collectAsState()
     val description by viewModel.description.collectAsState()
     val comments by viewModel.comments.collectAsState()
-    
+
     val location by viewModel.location.collectAsState()
     val deliveryLocation by viewModel.deliveryLocation.collectAsState()
 
     var expandedPart by remember { mutableStateOf(false) }
     var expandedQuality by remember { mutableStateOf(false) }
     var expandedLocation by remember { mutableStateOf(false) }
+
+    // التحقق من اكتمال الشروط لتفعيل الزر
+    val isFormValid = itemsList.isNotEmpty() && location.isNotBlank() && deliveryLocation.isNotBlank()
 
     val customTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Color.Black,
@@ -120,7 +123,6 @@ fun RequestPartsScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // بطاقة إدخال القطعة
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -239,16 +241,15 @@ fun RequestPartsScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF42A5F5)),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null)
+                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
                             Spacer(Modifier.width(8.dp))
-                            Text("إضافة القطعة للجدول", fontWeight = FontWeight.Bold)
+                            Text("إضافة القطعة للجدول", fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // جدول القطع
                 if (itemsList.isNotEmpty()) {
                     Column(Modifier.padding(horizontal = 16.dp)) {
                         Text("القطع المضافة للطلب (${itemsList.size}): اضغط للتعديل", fontWeight = FontWeight.Bold, color = Color(0xFF0D1B6D))
@@ -294,9 +295,7 @@ fun RequestPartsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // عنوان التوصيل
                 Column(Modifier.padding(horizontal = 16.dp)) {
-                    // المنطقه (Dropdown)
                     ExposedDropdownMenuBox(
                         expanded = expandedLocation,
                         onExpandedChange = { expandedLocation = !expandedLocation },
@@ -345,13 +344,21 @@ fun RequestPartsScreen(
                         onClick = { viewModel.submitOrder(userId, brandName, vehicleName, vehicleModel, manufacture, vinNumber) },
                         modifier = Modifier.fillMaxWidth().height(55.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D1B6D)),
-                        enabled = !uiState.isLoading
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF0D1B6D),
+                            disabledContainerColor = Color.LightGray
+                        ),
+                        enabled = !uiState.isLoading && isFormValid
                     ) {
                         if (uiState.isLoading) {
                             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                         } else {
-                            Text("تأكيد وطلب الفاتورة", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                "تأكيد وطلب الفاتورة",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isFormValid) Color.White else Color.DarkGray
+                            )
                         }
                     }
                     Spacer(modifier = Modifier.height(30.dp))

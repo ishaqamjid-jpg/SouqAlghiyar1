@@ -46,8 +46,7 @@ fun LoginScreen(
     // التحقق التلقائي من نجاح الدخول لتمرير الـ user_id للشاشة الرئيسية
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
-            // هنا يمرر المعرف الخاص به للرئيسية
-            navigateToMain(phone.ifEmpty { "dev_test_123" }) // لضمان تمرير ID في حال الدخول المؤقت
+            navigateToMain(phone.ifEmpty { "dev_test_123" })
         }
     }
 
@@ -66,7 +65,7 @@ fun LoginScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // الشعار الدائري الأنيق الخاص بك
+                // الشعار الدائري الخاص بك
                 Surface(
                     modifier = Modifier
                         .size(120.dp)
@@ -74,7 +73,7 @@ fun LoginScreen(
                     shape = CircleShape
                 ) {
                     Image(
-                        painter = painterResource(R.drawable.logo3), // تأكد من وجود الشعار في drawable
+                        painter = painterResource(R.drawable.logo3),
                         contentDescription = null,
                         modifier = Modifier.padding(15.dp)
                     )
@@ -88,7 +87,7 @@ fun LoginScreen(
                 )
                 Spacer(Modifier.height(35.dp))
 
-                // 1. خانة رقم الهاتف (ثابتة دائماً)
+                // 1. خانة رقم الهاتف
                 OutlinedTextField(
                     value = phone,
                     onValueChange = viewModel::onPhoneChange,
@@ -117,7 +116,7 @@ fun LoginScreen(
                     )
                 )
 
-                // 2. خانة الاسم الكامل (تظهر بحركة أنيميشن فقط عند تفعيل وضع الاشتراك الجديد)
+                // 2. خانة الاسم الكامل (تظهر فقط عند تفعيل وضع الاشتراك الجديد)
                 AnimatedVisibility(visible = isRegisterMode) {
                     Column {
                         Spacer(Modifier.height(15.dp))
@@ -151,7 +150,7 @@ fun LoginScreen(
 
                 Spacer(Modifier.height(10.dp))
 
-                // خيار تذكرني المفضل لديك
+                // خيار تذكرني
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -177,7 +176,7 @@ fun LoginScreen(
 
                 Spacer(Modifier.height(25.dp))
 
-                // الزر الديناميكي الأبيض الفخم
+                // الزر الرئيسي للدخول
                 Button(
                     onClick = {
                         focusManager.clearFocus()
@@ -203,7 +202,7 @@ fun LoginScreen(
 
                 Spacer(Modifier.height(20.dp))
 
-                // زر التبديل السفلي التفاعلي للتحول بين الدخول والاشتراك
+                // زر التبديل السفلي بين الدخول والاشتراك
                 TextButton(onClick = { viewModel.toggleRegisterMode() }) {
                     Text(
                         text = if (isRegisterMode) "لديك حساب بالفعل؟ تسجيل الدخول" else "اشتراك جديد في التطبيق",
@@ -214,18 +213,22 @@ fun LoginScreen(
                     )
                 }
 
-                // --- الإضافة الجديدة: زر الدخول المؤقت ---
-                TextButton(onClick = { viewModel.testLogin { navigateToMain(it) } }) {
+                // زر الدخول المؤقت للمطور بالـ ID الصحيح للـ Auto-ID الجديد
+                TextButton(onClick = {
+                    // تم تثبيت الـ ID الموثوق والصحيح بنجاح هنا
+                    val hardcodedDeveloperId = "yP37r324rJZpPDR2xWzL"
+                    navigateToMain(hardcodedDeveloperId)
+                }) {
                     Text(
                         text = "تخطي الدخول (للمطور فقط)",
-                        color = Color(0xFFFFEB3B), // أصفر ليكون بارزاً
+                        color = Color(0xFFFFEB3B),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         textDecoration = TextDecoration.Underline
                     )
                 }
 
-                // عرض الأخطاء باللون الأصفر المميز في تصميمك
+                // عرض رسائل الأخطاء
                 uiState.error?.let {
                     Spacer(Modifier.height(10.dp))
                     Text(
