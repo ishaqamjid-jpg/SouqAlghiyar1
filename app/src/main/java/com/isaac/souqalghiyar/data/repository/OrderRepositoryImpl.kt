@@ -125,8 +125,11 @@ class OrderRepositoryImpl @Inject constructor(
 
                         // إرسال البيانات المجمعة مرتبة من الأحدث للأقدم
                         send(orderList.sortedByDescending { it.order.created_at })
+                        
                     } catch (e: Exception) {
                         e.printStackTrace()
+                        // التعديل الأهم: إرسال قائمة فارغة في حال حدوث أي خطأ لمنع واجهة الطلبات من التعليق في وضع التحميل
+                        send(emptyList())
                     }
                 }
             }
