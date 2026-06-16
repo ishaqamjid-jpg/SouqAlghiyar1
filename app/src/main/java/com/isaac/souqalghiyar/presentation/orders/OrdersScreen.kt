@@ -47,11 +47,9 @@ fun OrdersScreen(
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("الطلبات المعلقة", "الطلبات السابقة")
 
-    // الجلب الآمن بمجرد دخول الشاشة وتوفر الـ ID
+    // الجلب المباشر بمجرد دخول الشاشة للسماح للـ ViewModel باكتشاف وإيقاف التحميل إن وجد خطأ بالـ ID
     LaunchedEffect(userId) {
-        if (userId.isNotBlank()) {
-            viewModel.fetchUserOrders(userId)
-        }
+        viewModel.fetchUserOrders(userId)
     }
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
@@ -102,7 +100,6 @@ fun OrdersScreen(
                         CircularProgressIndicator(color = Color(0xFF0D1B6D))
                     }
                 } else {
-                    // تم إزالة قيد remember هنا لضمان التحديث اللحظي المباشر
                     val filteredOrders = if (selectedTab == 0) {
                         orders.filter {
                             val status = it.order.order_status.trim().lowercase()
