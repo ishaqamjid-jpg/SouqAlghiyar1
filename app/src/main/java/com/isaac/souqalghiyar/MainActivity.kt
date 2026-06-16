@@ -61,8 +61,9 @@ class MainActivity : ComponentActivity() {
 
                                     navController.navigate("request_parts/$userId/$safeBrand/$safeName/$safeModel/$safeManuf/$safeVin")
                                 },
-                                navigateToOrders = {
-                                    navController.navigate("orders")
+                                navigateToOrders = { passedUserId ->
+                                    // التعديل: تمرير الـ userId الذي يصل من الواجهة الرئيسية إلى مسار شاشة الطلبات
+                                    navController.navigate("orders/$passedUserId")
                                 }
                             )
                         }
@@ -86,10 +87,14 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        composable("orders") {
-                            val currentUserId = sharedPref.getString("user_id", "") ?: ""
+                        // التعديل: إضافة استقبال المتغير {userId} في مسار الطلبات لضمان عدم ضياع المعرف
+                        composable("orders/{userId}") { backStackEntry ->
+                            val routeUserId = backStackEntry.arguments?.getString("userId") ?: ""
+                            // كخطوة أمان إضافية: لو لم يصل من الـ Navigation، نأخذه من الـ SharedPreferences
+                            val finalUserId = routeUserId.ifEmpty { sharedPref.getString("user_id", "") ?: "" }
+                            
                             OrdersScreen(
-                                userId = currentUserId,
+                                userId = finalUserId,
                                 onNavigateBack = { navController.popBackStack() }
                             )
                         }
