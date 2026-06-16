@@ -61,7 +61,7 @@ fun MainScreen(
     userId: String,
     viewModel: MainViewModel = hiltViewModel(),
     navigateToRequestParts: (String, String, String, String, String) -> Unit,
-    navigateToOrders: (String) -> Unit // تعديل: يجب تمرير الـ userId هنا
+    navigateToOrders: (String) -> Unit // تم تصحيح استقبال التمرير هنا
 ) {
     val adsList by viewModel.adsList.collectAsState()
     val brandsList by viewModel.brandsList.collectAsState()
@@ -107,7 +107,8 @@ fun MainScreen(
                 TopAppBar(
                     title = { Text("سوق الغيار اليمن", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp) },
                     actions = {
-                        IconButton(onClick = { navigateToOrders(userId) }) { // تعديل: تمرير الـ userId للواجهة
+                        // عند الضغط يتم الانتقال لشاشة الطلبات مع أخذ الـ userId
+                        IconButton(onClick = { navigateToOrders(userId) }) {
                             Icon(Icons.Default.ListAlt, contentDescription = "طلباتي", tint = Color.White, modifier = Modifier.size(28.dp))
                         }
                     },
@@ -121,6 +122,8 @@ fun MainScreen(
             },
             containerColor = BackgroundGray
         ) { innerPadding ->
+            
+            // عرض مؤشر التحميل في البداية قبل ظهور الشاشة
             if (isLoadingData) {
                 Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -206,6 +209,7 @@ fun MainScreen(
 
                     Spacer(modifier = Modifier.height(40.dp))
                     
+                    // الزر أصبح ظاهراً دائماً، ويُغلق تفعيله وتتغير ألوانه حسب الشروط
                     Button(
                         onClick = {
                             navigateToRequestParts(brandName, vehicleModel, vehicleYear, manufacture, vinNumber.ifEmpty { "غير محدد" })
@@ -237,4 +241,300 @@ fun MainScreen(
     }
 }
 
-// ... [احتفظ ببقية دوال MainScreen كما هي: CarDetailsFields, PhotoPickerBox, AnalyzeButton, AnimatedAdsCard] ...
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CarDetailsFields(
+    brand: String, onBrandChange: (String) -> Unit, brandsList: List<String>,
+    model: String, onModelChange: (String) -> Unit,
+    year: String, onYearChange: (String) -> Unit,
+    madeIn: String, onMadeInChange: (String) -> Unit,
+    vin: String, onVinChange: (String) -> Unit
+) {
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    var expandedBrand by remember { mutableStateOf(false) }
+    var expandedYear by remember { mutableStateOf(false) }
+    var expandedMadeIn by remember { mutableStateOf(false) }
+
+    val yearsList = (2000..2026).map { it.toString() }.reversed()
+    val madeInOptions = listOf("أمريكي", "خليجي", "وارد آخر")
+
+    val defaultTextFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = Color.Black,
+        unfocusedTextColor = Color.Black,
+        focusedBorderColor = PrimaryBlue,
+        unfocusedBorderColor = Color.Gray,
+        focusedLabelColor = PrimaryBlue,
+        unfocusedLabelColor = Color.DarkGray,
+        cursorColor = PrimaryBlue
+    )
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ExposedDropdownMenuBox(
+                expanded = expandedBrand,
+                onExpandedChange = { expandedBrand = !expandedBrand },
+                modifier = Modifier.weight(1f)
+            ) {
+                OutlinedTextField(
+                    value = brand,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("الماركة *") },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    colors = defaultTextFieldColors,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedBrand) },
+                    shape = RoundedCornerShape(12.dp)
+                )
+                ExposedDropdownMenu(
+                    expanded = expandedBrand,
+                    onDismissRequest = { expandedBrand = false },
+                    modifier = Modifier.background(Color.White)
+                ) {
+                    brandsList.forEach { opt ->
+                        DropdownMenuItem(
+                            text = { Text(opt, color = Color.Black) },
+                            onClick = {
+                                onBrandChange(opt)
+                                expandedBrand = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = model, onValueChange = onModelChange,
+                label = { Text("نوع الموديل *") },
+                placeholder = { Text("مثل: كورولا") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                colors = defaultTextFieldColors,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
+                shape = RoundedCornerShape(12.dp)
+            )
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ExposedDropdownMenuBox(
+                expanded = expandedYear,
+                onExpandedChange = { expandedYear = !expandedYear },
+                modifier = Modifier.weight(1f)
+            ) {
+                OutlinedTextField(
+                    value = year,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("السنة *") },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    colors = defaultTextFieldColors,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedYear) },
+                    shape = RoundedCornerShape(12.dp)
+                )
+                ExposedDropdownMenu(
+                    expanded = expandedYear,
+                    onDismissRequest = { expandedYear = false },
+                    modifier = Modifier.background(Color.White)
+                ) {
+                    yearsList.forEach { opt ->
+                        DropdownMenuItem(
+                            text = { Text(opt, color = Color.Black) },
+                            onClick = {
+                                onYearChange(opt)
+                                expandedYear = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            ExposedDropdownMenuBox(
+                expanded = expandedMadeIn,
+                onExpandedChange = { expandedMadeIn = !expandedMadeIn },
+                modifier = Modifier.weight(1f)
+            ) {
+                OutlinedTextField(
+                    value = madeIn,
+                    onValueChange = onMadeInChange,
+                    label = { Text("مكان التصنيع *") },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    colors = defaultTextFieldColors,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMadeIn) },
+                    shape = RoundedCornerShape(12.dp)
+                )
+                ExposedDropdownMenu(
+                    expanded = expandedMadeIn,
+                    onDismissRequest = { expandedMadeIn = false },
+                    modifier = Modifier.background(Color.White)
+                ) {
+                    madeInOptions.forEach { opt ->
+                        DropdownMenuItem(
+                            text = { Text(opt, color = Color.Black) },
+                            onClick = {
+                                onMadeInChange(opt)
+                                expandedMadeIn = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        OutlinedTextField(
+            value = vin, onValueChange = onVinChange,
+            label = { Text("رقم القعادة / الشاصي (17 خانة - اختياري)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = defaultTextFieldColors,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done, keyboardType = KeyboardType.Ascii),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { focusManager.clearFocus() }),
+            shape = RoundedCornerShape(12.dp)
+        )
+    }
+}
+
+@Composable
+fun PhotoPickerBox(isUploaded: Boolean, onClick: () -> Unit) {
+    val borderColor = if (isUploaded) SuccessGreen else Color.Gray.copy(alpha = 0.5f)
+    val bgColor = if (isUploaded) LightGreen else Color.White
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(110.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(bgColor)
+            .border(2.dp, borderColor, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+            Icon(
+                imageVector = if (isUploaded) Icons.Default.CheckCircle else Icons.Default.PhotoCamera,
+                contentDescription = "الكاميرا",
+                tint = if (isUploaded) SuccessGreen else AccentBlue,
+                modifier = Modifier.size(36.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = if (isUploaded) "تم اختيار الصورة بنجاح" else "انقر لاختيار صورة ملصق الشاصي",
+                color = if (isUploaded) SuccessGreen else Color.DarkGray,
+                fontWeight = if (isUploaded) FontWeight.Bold else FontWeight.Normal,
+                fontSize = 15.sp,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+fun AnalyzeButton(isImageUploaded: Boolean, isAnalyzing: Boolean, onClick: () -> Unit) {
+    val context = LocalContext.current
+    Button(
+        onClick = {
+            if (!isImageUploaded) {
+                Toast.makeText(context, "يرجى اختيار صورة ملصق الشاصي أولاً", Toast.LENGTH_SHORT).show()
+            } else {
+                onClick()
+            }
+        },
+        modifier = Modifier.fillMaxWidth().height(55.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+        contentPadding = PaddingValues()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Brush.horizontalGradient(colors = listOf(AccentBlue, Color(0xFF2196F3))), shape = RoundedCornerShape(14.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isAnalyzing) {
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("استخراج البيانات من الصورة", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AnimatedAdsCard(ads: List<Advertisement>) {
+    val infiniteTransition = rememberInfiniteTransition(label = "ads_animation")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.97f, targetValue = 1.03f,
+        animationSpec = infiniteRepeatable(animation = tween(1500, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+        label = "scale"
+    )
+    var currentIndex by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(ads) {
+        if (ads.isNotEmpty() && ads.size > 1) {
+            while (true) {
+                delay(4000)
+                currentIndex = (currentIndex + 1) % ads.size
+            }
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().height(140.dp).graphicsLayer { scaleX = scale; scaleY = scale },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF2994A))
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(Brush.linearGradient(colors = listOf(Color(0xFFF2994A), Color(0xFFF2C94C)))),
+            contentAlignment = Alignment.Center
+        ) {
+            if (ads.isEmpty()) {
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(28.dp))
+            } else {
+                AnimatedContent(
+                    targetState = currentIndex,
+                    transitionSpec = { fadeIn(tween(600)) togetherWith fadeOut(tween(600)) },
+                    label = "ad_transition"
+                ) { targetIndex ->
+                    
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        // إضافة مكتبة Coil لعرض الصورة من الرابط
+                        AsyncImage(
+                            model = ads[targetIndex].image_url,
+                            contentDescription = "الإعلان",
+                            contentScale = ContentScale.Crop, // للتأكد من ملء الصورة للبطاقة
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        
+                        // طبقة شفافة داكنة (Overlay) لكي يظل النص الأبيض مقروءاً فوق أي صورة
+                        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
+                        
+                        // النصوص فوق الصورة
+                        Column(
+                            modifier = Modifier.fillMaxSize().padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = ads[targetIndex].title, 
+                                textAlign = TextAlign.Center, 
+                                color = Color.White, 
+                                fontWeight = FontWeight.ExtraBold, 
+                                fontSize = 20.sp, 
+                                lineHeight = 26.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = ads[targetIndex].target_url ?: "", 
+                                textAlign = TextAlign.Center, 
+                                color = Color.White.copy(alpha = 0.9f), 
+                                fontWeight = FontWeight.Medium, 
+                                fontSize = 15.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
