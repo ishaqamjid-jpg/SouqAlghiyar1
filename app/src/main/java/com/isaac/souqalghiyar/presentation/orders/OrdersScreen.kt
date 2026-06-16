@@ -101,14 +101,16 @@ fun OrdersScreen(
                     }
                 } else {
                     val filteredOrders = if (selectedTab == 0) {
+                        // الطلبات المعلقة: تشمل قيد المراجعة أو بانتظار الموافقة
                         orders.filter {
                             val status = it.order.order_status.trim().lowercase()
-                            status == "pending" || status == "priced"
+                            status == "pending" || status == "waiting for approval" || status == "waiting for approvel"
                         }
                     } else {
+                        // الطلبات السابقة: تشمل المكتملة أو المرفوضة/الملغية
                         orders.filter {
                             val status = it.order.order_status.trim().lowercase()
-                            status == "ongoing" || status == "completed"
+                            status == "completed" || status == "canceled"
                         }
                     }
 
@@ -177,12 +179,13 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                     )
                 }
 
+                // تخصيص الألوان والنصوص بناءً على الحالة الجديدة
                 val statusConfig = remember(order.order_status) {
                     when (order.order_status.trim().lowercase()) {
                         "pending" -> Pair("قيد المراجعة", Color(0xFFFFA000))
-                        "priced" -> Pair("تم التسعير!", Color(0xFF2E7D32))
-                        "ongoing" -> Pair("جاري التوصيل", Color(0xFF1976D2))
-                        "completed" -> Pair("مكتمل", Color.Gray)
+                        "waiting for approval", "waiting for approvel" -> Pair("بانتظار موافقتك", Color(0xFF2E7D32))
+                        "completed" -> Pair("مكتمل", Color(0xFF1976D2)) // لون أزرق للمكتمل
+                        "canceled" -> Pair("مرفوض", Color(0xFFD32F2F)) // لون أحمر للمرفوض
                         else -> Pair(order.order_status, Color.DarkGray)
                     }
                 }
@@ -270,14 +273,17 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                         }
                     }
 
-                    if (order.order_status.trim().lowercase() == "priced") {
+                    // أزرار الموافقة والرفض تظهر فقط في حالة انتظار الموافقة
+                    val currentStatus = order.order_status.trim().lowercase()
+                    if (currentStatus == "waiting for approval" || currentStatus == "waiting for approvel") {
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Button(
-                                onClick = { viewModel.updateStatus(order.order_id, "ongoing") },
+                                // في حال الموافقة يتحول الطلب إلى مكتمل
+                                onClick = { viewModel.updateStatus(order.order_id, "completed") },
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
                                 shape = RoundedCornerShape(8.dp)
@@ -288,6 +294,7 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                             }
 
                             OutlinedButton(
+                                // في حال عدم الموافقة يتحول الطلب إلى مرفوض/ملغي
                                 onClick = { viewModel.updateStatus(order.order_id, "canceled") },
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFD32F2F)),
@@ -296,7 +303,7 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                             ) {
                                 Icon(Icons.Default.Cancel, contentDescription = null, tint = Color(0xFFD32F2F), modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("إلغاء الطلب", fontWeight = FontWeight.Bold)
+                                Text("عدم الموافقة", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
