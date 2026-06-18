@@ -27,9 +27,12 @@ class MainViewModel @Inject constructor(
     private val _isAnalyzing = MutableStateFlow(false)
     val isAnalyzing: StateFlow<Boolean> = _isAnalyzing.asStateFlow()
 
-    // متغير للتحكم في شاشة الانتظار عند فتح التطبيق
     private val _isLoadingData = MutableStateFlow(true)
     val isLoadingData: StateFlow<Boolean> = _isLoadingData.asStateFlow()
+
+    // متغير لمراقبة وجود طلبات معلقة (waiting for approval)
+    private val _hasPendingOrders = MutableStateFlow(false)
+    val hasPendingOrders: StateFlow<Boolean> = _hasPendingOrders.asStateFlow()
 
     init {
         fetchInitialData()
@@ -39,7 +42,6 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoadingData.value = true
             
-            // تشغيل جلب البيانات بالتوازي
             launch {
                 repository.getActiveAdvertisements().collect { ads ->
                     _adsList.value = ads
@@ -51,9 +53,23 @@ class MainViewModel @Inject constructor(
                 }
             }
             
-            // إعطاء وقت قصير للتأكد من جلب البيانات قبل إخفاء مؤشر التحميل
             delay(1500)
             _isLoadingData.value = false
+        }
+    }
+
+    // دالة للتحقق من الطلبات المعلقة وتحديث علامة الإشعار
+    fun checkPendingOrders(userId: String) {
+        viewModelScope.launch {
+            // ملاحظة: يجب عليك إضافة دالة في MainRepository تستمع للطلبات التي حالتها
+            // "waiting for approval" الخاصة بهذا الـ userId وترجع Boolean
+            // مثال تخيلي:
+            // repository.hasWaitingForApprovalOrders(userId).collect { hasPending ->
+            //     _hasPendingOrders.value = hasPending
+            // }
+            
+            // كود محاكاة مؤقت (احذفه عند ربطه بالـ Repository الفعلي):
+            _hasPendingOrders.value = true // نجعله true لتجربة شكل النقطة الحمراء
         }
     }
 
@@ -65,10 +81,8 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             _isAnalyzing.value = true
             try {
-                // محاكاة الاتصال بـ ML Kit و استخراج البيانات
                 delay(2000)
                 
-                // البيانات المستخرجة وهمياً كمثال
                 val extractedBrand = "تويوتا"
                 val extractedModel = "كورولا"
                 val extractedYear = "2022"
