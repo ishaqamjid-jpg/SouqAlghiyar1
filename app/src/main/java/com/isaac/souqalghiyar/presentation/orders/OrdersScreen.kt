@@ -33,6 +33,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.isaac.souqalghiyar.domain.model.OrderItem
 import com.isaac.souqalghiyar.domain.model.OrderWithItems
 
+val PrimaryRed = Color(0xFFE53935)
+val DarkBackground = Color(0xFF121212)
+val SurfaceDark = Color(0xFF1E1E1E)
+val TextWhite = Color(0xFFFFFFFF)
+val TextGray = Color(0xFFAAAAAA)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrdersScreen(
@@ -47,7 +53,6 @@ fun OrdersScreen(
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("الطلبات المعلقة", "الطلبات السابقة")
 
-    // الجلب المباشر بمجرد دخول الشاشة للسماح للـ ViewModel باكتشاف وإيقاف التحميل إن وجد خطأ بالـ ID
     LaunchedEffect(userId) {
         viewModel.fetchUserOrders(userId)
     }
@@ -56,19 +61,19 @@ fun OrdersScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("طلباتي", fontWeight = FontWeight.Bold) },
+                    title = { Text("طلباتي", fontWeight = FontWeight.ExtraBold) },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "رجوع", tint = Color.White)
+                            Icon(Icons.Default.ArrowBack, contentDescription = "رجوع", tint = TextWhite)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color(0xFF0D1B6D),
-                        titleContentColor = Color.White
+                        containerColor = Color.Black,
+                        titleContentColor = PrimaryRed
                     )
                 )
             },
-            containerColor = Color(0xFFF5F5F5)
+            containerColor = DarkBackground
         ) { innerPadding ->
             Column(
                 modifier = Modifier
@@ -77,12 +82,12 @@ fun OrdersScreen(
             ) {
                 TabRow(
                     selectedTabIndex = selectedTab,
-                    containerColor = Color.White,
-                    contentColor = Color(0xFF0D1B6D),
+                    containerColor = Color.Black,
+                    contentColor = TextWhite,
                     indicator = { tabPositions ->
                         TabRowDefaults.SecondaryIndicator(
                             Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                            color = Color(0xFF0D1B6D)
+                            color = PrimaryRed
                         )
                     }
                 ) {
@@ -90,24 +95,22 @@ fun OrdersScreen(
                         Tab(
                             selected = selectedTab == index,
                             onClick = { selectedTab = index },
-                            text = { Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp) }
+                            text = { Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = if(selectedTab == index) PrimaryRed else TextGray) }
                         )
                     }
                 }
 
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Color(0xFF0D1B6D))
+                        CircularProgressIndicator(color = PrimaryRed)
                     }
                 } else {
                     val filteredOrders = if (selectedTab == 0) {
-                        // الطلبات المعلقة: تشمل قيد المراجعة أو بانتظار الموافقة
                         orders.filter {
                             val status = it.order.order_status.trim().lowercase()
                             status == "pending" || status == "waiting for approval" || status == "waiting for approvel"
                         }
                     } else {
-                        // الطلبات السابقة: تشمل المكتملة أو المرفوضة/الملغية
                         orders.filter {
                             val status = it.order.order_status.trim().lowercase()
                             status == "completed" || status == "canceled"
@@ -118,7 +121,7 @@ fun OrdersScreen(
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text(
                                 text = if (selectedTab == 0) "لا توجد طلبات معلقة حالياً" else "لا توجد طلبات سابقة",
-                                color = Color.Gray,
+                                color = TextGray,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -153,8 +156,9 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .border(1.dp, SurfaceDark, RoundedCornerShape(12.dp))
             .clickable { expanded = !expanded },
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
         elevation = CardDefaults.cardElevation(3.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -168,25 +172,24 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                     Text(
                         text = "طلب رقم: #${order.order_number}",
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0D1B6D),
+                        color = PrimaryRed,
                         fontSize = 16.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "${order.brand_name} - ${order.vehicle_name} ${order.vehicle_model}",
-                        color = Color.Black,
+                        color = TextWhite,
                         fontSize = 14.sp
                     )
                 }
 
-                // تخصيص الألوان والنصوص بناءً على الحالة الجديدة
                 val statusConfig = remember(order.order_status) {
                     when (order.order_status.trim().lowercase()) {
-                        "pending" -> Pair("قيد المراجعة", Color(0xFFFFA000))
-                        "waiting for approval", "waiting for approvel" -> Pair("بانتظار موافقتك", Color(0xFF2E7D32))
-                        "completed" -> Pair("مكتمل", Color(0xFF1976D2)) // لون أزرق للمكتمل
-                        "canceled" -> Pair("مرفوض", Color(0xFFD32F2F)) // لون أحمر للمرفوض
-                        else -> Pair(order.order_status, Color.DarkGray)
+                        "pending" -> Pair("قيد المراجعة", Color(0xFFFFB300))
+                        "waiting for approval", "waiting for approvel" -> Pair("بانتظار موافقتك", Color(0xFF66BB6A))
+                        "completed" -> Pair("مكتمل", Color(0xFF42A5F5)) 
+                        "canceled" -> Pair("مرفوض", PrimaryRed) 
+                        else -> Pair(order.order_status, TextGray)
                     }
                 }
 
@@ -205,7 +208,7 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
+            HorizontalDivider(color = Color.DarkGray)
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(
@@ -215,20 +218,20 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
             ) {
                 Text(
                     text = "عدد الأصناف المضافة: ${items.size}",
-                    color = Color.DarkGray,
+                    color = TextGray,
                     fontSize = 14.sp
                 )
                 Icon(
                     imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = null,
-                    tint = Color.Gray
+                    tint = TextWhite
                 )
             }
 
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("تفاصيل الأصناف والفاتورة:", fontWeight = FontWeight.Bold, color = Color.Gray, fontSize = 14.sp)
+                    Text("تفاصيل الأصناف والفاتورة:", fontWeight = FontWeight.Bold, color = PrimaryRed, fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(8.dp))
 
                     items.forEach { item ->
@@ -242,14 +245,14 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                                 text = "${item.part_name} (${item.quality_type}) x${item.quantity}",
                                 modifier = Modifier.weight(2f),
                                 fontSize = 14.sp,
-                                color = Color.Black
+                                color = TextWhite
                             )
                             Text(
                                 text = if (order.order_status.trim().lowercase() == "pending") "قيد التسعير" else "${item.selling_price * item.quantity} ريال",
                                 modifier = Modifier.weight(1f),
                                 textAlign = TextAlign.End,
                                 fontSize = 14.sp,
-                                color = if (order.order_status.trim().lowercase() == "pending") Color.Gray else Color.Black,
+                                color = if (order.order_status.trim().lowercase() == "pending") TextGray else TextWhite,
                                 fontWeight = if (order.order_status.trim().lowercase() == "pending") FontWeight.Normal else FontWeight.Bold
                             )
                         }
@@ -257,23 +260,22 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
 
                     if (order.order_status.trim().lowercase() != "pending") {
                         Spacer(modifier = Modifier.height(8.dp))
-                        HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
+                        HorizontalDivider(color = Color.DarkGray)
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("رسوم التوصيل للمشوار:", fontSize = 14.sp, color = Color.DarkGray)
-                            Text("${order.delivery_fees} ريال", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("رسوم التوصيل للمشوار:", fontSize = 14.sp, color = TextGray)
+                            Text("${order.delivery_fees} ريال", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextWhite)
                         }
 
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("الإجمالي الكلي للفاتورة:", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0D1B6D))
-                            Text("$totalInvoice ريال", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF2E7D32))
+                            Text("الإجمالي الكلي للفاتورة:", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = PrimaryRed)
+                            Text("$totalInvoice ريال", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF66BB6A))
                         }
                     }
 
-                    // أزرار الموافقة والرفض تظهر فقط في حالة انتظار الموافقة
                     val currentStatus = order.order_status.trim().lowercase()
                     if (currentStatus == "waiting for approval" || currentStatus == "waiting for approvel") {
                         Spacer(modifier = Modifier.height(16.dp))
@@ -282,7 +284,6 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Button(
-                                // في حال الموافقة يتحول الطلب إلى مكتمل
                                 onClick = { viewModel.updateStatus(order.order_id, "completed") },
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
@@ -294,14 +295,13 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                             }
 
                             OutlinedButton(
-                                // في حال عدم الموافقة يتحول الطلب إلى مرفوض/ملغي
                                 onClick = { viewModel.updateStatus(order.order_id, "canceled") },
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFD32F2F)),
-                                border = BorderStroke(1.dp, Color(0xFFD32F2F)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryRed),
+                                border = BorderStroke(1.dp, PrimaryRed),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Icon(Icons.Default.Cancel, contentDescription = null, tint = Color(0xFFD32F2F), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Cancel, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("عدم الموافقة", fontWeight = FontWeight.Bold)
                             }
