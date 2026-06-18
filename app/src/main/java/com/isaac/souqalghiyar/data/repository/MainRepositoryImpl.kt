@@ -46,4 +46,25 @@ class MainRepositoryImpl @Inject constructor(
             }
         awaitClose { subscription.remove() }
     }
+
+    // التنفيذ الفعلي للدالة الجديدة
+    override fun hasWaitingForApprovalOrders(userId: String): Flow<Boolean> = callbackFlow {
+        // البحث في مجموعة الطلبات
+        val subscription = firestore.collection("orders")
+            .whereEqualTo("user_id", userId) // مطابقة المستخدم الحالي
+            .whereEqualTo("order_status", "waiting for approval") // مطابقة حالة الطلب
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    // إذا لم يكن الـ snapshot فارغاً، فهذا يعني أن هناك طلبات معلقة (نرجع true)
+                    // إذا كان فارغاً نرجع false
+                    val hasPending = !snapshot.isEmpty
+                    trySend(hasPending).isSuccess
+                }
+            }
+        awaitClose { subscription.remove() }
+    }
 }
