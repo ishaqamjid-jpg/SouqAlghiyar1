@@ -7,8 +7,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
@@ -26,7 +24,13 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.*
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.isaac.souqalghiyar.R
-import androidx.compose.material3.OutlinedTextFieldDefaults
+
+// ألوان الثيم الداكن
+val PrimaryRed = Color(0xFFE53935)
+val DarkBackground = Color(0xFF121212)
+val SurfaceDark = Color(0xFF1E1E1E)
+val TextWhite = Color(0xFFFFFFFF)
+val TextGray = Color(0xFFAAAAAA)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,19 +47,17 @@ fun LoginScreen(
     val nameFocusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
-    // التحقق التلقائي من نجاح الدخول لتمرير الـ user_id للشاشة الرئيسية
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
             navigateToMain(phone.ifEmpty { "dev_test_123" })
         }
     }
 
-    // إجبار اتجاه الواجهة RTL للتوافق العربي الاحترافي لـ Compose
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(Color(0xFF0D1B6D), Color(0xFF42A5F5))))
+                .background(DarkBackground) // خلفية سوداء فخمة
         ) {
             Column(
                 modifier = Modifier
@@ -65,12 +67,12 @@ fun LoginScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // الشعار الدائري الخاص بك
                 Surface(
                     modifier = Modifier
                         .size(120.dp)
-                        .shadow(10.dp, CircleShape),
-                    shape = CircleShape
+                        .shadow(15.dp, CircleShape, spotColor = PrimaryRed.copy(alpha = 0.5f)), // ظل أحمر خفيف للشعار
+                    shape = CircleShape,
+                    color = SurfaceDark
                 ) {
                     Image(
                         painter = painterResource(R.drawable.logo3),
@@ -80,19 +82,30 @@ fun LoginScreen(
                 }
                 Spacer(Modifier.height(25.dp))
                 Text(
-                    text = "قطع غيار حده",
+                    text = "سوق الغيار",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = PrimaryRed // لون أحمر رياضي
                 )
                 Spacer(Modifier.height(35.dp))
 
-                // 1. خانة رقم الهاتف
+                val customTextFieldColors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextWhite,
+                    unfocusedTextColor = TextWhite,
+                    focusedLabelColor = PrimaryRed,
+                    unfocusedLabelColor = TextGray,
+                    focusedBorderColor = PrimaryRed,
+                    unfocusedBorderColor = SurfaceDark,
+                    focusedContainerColor = SurfaceDark.copy(alpha = 0.5f),
+                    unfocusedContainerColor = SurfaceDark.copy(alpha = 0.3f),
+                    cursorColor = PrimaryRed
+                )
+
                 OutlinedTextField(
                     value = phone,
                     onValueChange = viewModel::onPhoneChange,
                     label = { Text("رقم الهاتف") },
-                    placeholder = { Text("77xxxxxxx") },
+                    placeholder = { Text("77xxxxxxx", color = TextGray.copy(alpha = 0.5f)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = if (isRegisterMode) ImeAction.Next else ImeAction.Done),
@@ -104,19 +117,9 @@ fun LoginScreen(
                         }
                     ),
                     shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedLabelColor = Color.White,
-                        unfocusedLabelColor = Color.White.copy(alpha = 0.7f),
-                        focusedBorderColor = Color.White,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
-                        focusedPlaceholderColor = Color.White.copy(alpha = 0.4f),
-                        unfocusedPlaceholderColor = Color.White.copy(alpha = 0.4f)
-                    )
+                    colors = customTextFieldColors
                 )
 
-                // 2. خانة الاسم الكامل (تظهر فقط عند تفعيل وضع الاشتراك الجديد)
                 AnimatedVisibility(visible = isRegisterMode) {
                     Column {
                         Spacer(Modifier.height(15.dp))
@@ -136,21 +139,13 @@ fun LoginScreen(
                                 }
                             ),
                             shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedLabelColor = Color.White,
-                                unfocusedLabelColor = Color.White.copy(0.7f),
-                                focusedBorderColor = Color.White,
-                                unfocusedBorderColor = Color.White.copy(0.5f)
-                            )
+                            colors = customTextFieldColors
                         )
                     }
                 }
 
                 Spacer(Modifier.height(10.dp))
 
-                // خيار تذكرني
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -161,14 +156,14 @@ fun LoginScreen(
                         checked = rememberMe,
                         onCheckedChange = { viewModel.onRememberMeChange(it) },
                         colors = CheckboxDefaults.colors(
-                            checkedColor = Color.White,
-                            uncheckedColor = Color.White.copy(alpha = 0.6f),
-                            checkmarkColor = Color(0xFF0D1B6D)
+                            checkedColor = PrimaryRed,
+                            uncheckedColor = TextGray,
+                            checkmarkColor = TextWhite
                         )
                     )
                     Text(
                         text = "تذكرني في المرة القادمة",
-                        color = Color.White,
+                        color = TextWhite,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -176,7 +171,6 @@ fun LoginScreen(
 
                 Spacer(Modifier.height(25.dp))
 
-                // الزر الرئيسي للدخول
                 Button(
                     onClick = {
                         focusManager.clearFocus()
@@ -185,12 +179,12 @@ fun LoginScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(55.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF0D1B6D)),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryRed, contentColor = TextWhite),
                     enabled = !uiState.isLoading,
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     if (uiState.isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = Color(0xFF0D1B6D))
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = TextWhite)
                     } else {
                         Text(
                             text = if (isRegisterMode) "إنشاء الحساب واشتراك" else "دخول",
@@ -202,38 +196,34 @@ fun LoginScreen(
 
                 Spacer(Modifier.height(20.dp))
 
-                // زر التبديل السفلي بين الدخول والاشتراك
                 TextButton(onClick = { viewModel.toggleRegisterMode() }) {
                     Text(
                         text = if (isRegisterMode) "لديك حساب بالفعل؟ تسجيل الدخول" else "اشتراك جديد في التطبيق",
-                        color = Color.White,
+                        color = TextGray,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
                 }
 
-                // زر الدخول المؤقت للمطور بالـ ID الصحيح للـ Auto-ID الجديد
                 TextButton(onClick = {
-                    // تم تثبيت الـ ID الموثوق والصحيح بنجاح هنا
                     val hardcodedDeveloperId = "yP37r324rJZpPDR2xWzL"
                     navigateToMain(hardcodedDeveloperId)
                 }) {
                     Text(
                         text = "تخطي الدخول (للمطور فقط)",
-                        color = Color(0xFFFFEB3B),
+                        color = PrimaryRed,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         textDecoration = TextDecoration.Underline
                     )
                 }
 
-                // عرض رسائل الأخطاء
                 uiState.error?.let {
                     Spacer(Modifier.height(10.dp))
                     Text(
                         text = it,
-                        color = Color(0xFFFFEB3B),
+                        color = PrimaryRed,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
                         fontSize = 14.sp
