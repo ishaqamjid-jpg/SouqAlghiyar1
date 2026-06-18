@@ -8,12 +8,14 @@ import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -31,7 +33,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -47,7 +48,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.isaac.souqalghiyar.domain.model.Advertisement
 import kotlinx.coroutines.delay
-import androidx.compose.animation.*
 
 val PrimaryBlue = Color(0xFF0D1B6D)
 val AccentBlue = Color(0xFF42A5F5)
@@ -61,14 +61,22 @@ fun MainScreen(
     userId: String,
     viewModel: MainViewModel = hiltViewModel(),
     navigateToRequestParts: (String, String, String, String, String) -> Unit,
-    navigateToOrders: (String) -> Unit // تم تصحيح استقبال التمرير هنا
+    navigateToOrders: (String) -> Unit
 ) {
     val adsList by viewModel.adsList.collectAsState()
     val brandsList by viewModel.brandsList.collectAsState()
     val isAnalyzing by viewModel.isAnalyzing.collectAsState()
     val isLoadingData by viewModel.isLoadingData.collectAsState()
     
+    // حالة الإشعار
+    val hasPendingOrders by viewModel.hasPendingOrders.collectAsState()
+    
     val context = LocalContext.current
+
+    // جلب حالة الإشعارات أول ما تفتح الشاشة
+    LaunchedEffect(userId) {
+        viewModel.checkPendingOrders(userId)
+    }
 
     var brandName by remember { mutableStateOf("") }
     var vehicleModel by remember { mutableStateOf("") } 
@@ -107,9 +115,23 @@ fun MainScreen(
                 TopAppBar(
                     title = { Text("سوق الغيار اليمن", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp) },
                     actions = {
-                        // عند الضغط يتم الانتقال لشاشة الطلبات مع أخذ الـ userId
                         IconButton(onClick = { navigateToOrders(userId) }) {
-                            Icon(Icons.Default.ListAlt, contentDescription = "طلباتي", tint = Color.White, modifier = Modifier.size(28.dp))
+                            // إضافة الـ BadgedBox لظهور علامة التنبيه (النقطة الحمراء)
+                            BadgedBox(
+                                badge = {
+                                    if (hasPendingOrders) {
+                                        Badge(
+                                            containerColor = Color.Red,
+                                            contentColor = Color.White,
+                                            modifier = Modifier.offset(x = (-4).dp, y = 4.dp)
+                                        ) {
+                                            Text("!", fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.ListAlt, contentDescription = "طلباتي", tint = Color.White, modifier = Modifier.size(28.dp))
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -122,8 +144,6 @@ fun MainScreen(
             },
             containerColor = BackgroundGray
         ) { innerPadding ->
-            
-            // عرض مؤشر التحميل في البداية قبل ظهور الشاشة
             if (isLoadingData) {
                 Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -142,7 +162,10 @@ fun MainScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // استدعاء مكون الإعلانات الجديد (بالسحب والتحريك التلقائي)
                     AnimatedAdsCard(ads = adsList)
+                    
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Text(
@@ -209,7 +232,6 @@ fun MainScreen(
 
                     Spacer(modifier = Modifier.height(40.dp))
                     
-                    // الزر أصبح ظاهراً دائماً، ويُغلق تفعيله وتتغير ألوانه حسب الشروط
                     Button(
                         onClick = {
                             navigateToRequestParts(brandName, vehicleModel, vehicleYear, manufacture, vinNumber.ifEmpty { "غير محدد" })
@@ -241,6 +263,7 @@ fun MainScreen(
     }
 }
 
+// دالة الحقول (لم تتغير، تبقى كما هي)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CarDetailsFields(
@@ -392,6 +415,7 @@ fun CarDetailsFields(
     }
 }
 
+// دالة PhotoPickerBox (لم تتغير)
 @Composable
 fun PhotoPickerBox(isUploaded: Boolean, onClick: () -> Unit) {
     val borderColor = if (isUploaded) SuccessGreen else Color.Gray.copy(alpha = 0.5f)
@@ -425,6 +449,7 @@ fun PhotoPickerBox(isUploaded: Boolean, onClick: () -> Unit) {
     }
 }
 
+// دالة AnalyzeButton (لم تتغير)
 @Composable
 fun AnalyzeButton(isImageUploaded: Boolean, isAnalyzing: Boolean, onClick: () -> Unit) {
     val context = LocalContext.current
@@ -460,79 +485,85 @@ fun AnalyzeButton(isImageUploaded: Boolean, isAnalyzing: Boolean, onClick: () ->
     }
 }
 
+// الكارد الجديد للإعلانات (يدعم السحب اليدوي + الانتقال التلقائي كل 3 ثواني)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AnimatedAdsCard(ads: List<Advertisement>) {
-    val infiniteTransition = rememberInfiniteTransition(label = "ads_animation")
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 0.97f, targetValue = 1.03f,
-        animationSpec = infiniteRepeatable(animation = tween(1500, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
-        label = "scale"
-    )
-    var currentIndex by remember { mutableIntStateOf(0) }
+    // إذا كانت القائمة فارغة، إظهار شاشة تحميل مصغرة
+    if (ads.isEmpty()) {
+        Card(
+            modifier = Modifier.fillMaxWidth().height(140.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF2994A))
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(Brush.linearGradient(colors = listOf(Color(0xFFF2994A), Color(0xFFF2C94C)))),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(28.dp))
+            }
+        }
+        return
+    }
 
-    LaunchedEffect(ads) {
-        if (ads.isNotEmpty() && ads.size > 1) {
-            while (true) {
-                delay(4000)
-                currentIndex = (currentIndex + 1) % ads.size
+    // مكون HorizontalPager يدعم السحب لليمين واليسار (Swipe)
+    val pagerState = rememberPagerState(pageCount = { ads.size })
+
+    // مؤقت للانتقال التلقائي كل 3 ثوانٍ
+    LaunchedEffect(pagerState) {
+        while (true) {
+            delay(3000) // 3 ثواني بدلاً من 4
+            if (ads.size > 1) {
+                val nextPage = (pagerState.currentPage + 1) % ads.size
+                // انتقال ناعم
+                pagerState.animateScrollToPage(nextPage)
             }
         }
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth().height(140.dp).graphicsLayer { scaleX = scale; scaleY = scale },
+        modifier = Modifier.fillMaxWidth().height(140.dp),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF2994A))
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize().background(Brush.linearGradient(colors = listOf(Color(0xFFF2994A), Color(0xFFF2C94C)))),
-            contentAlignment = Alignment.Center
-        ) {
-            if (ads.isEmpty()) {
-                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(28.dp))
-            } else {
-                AnimatedContent(
-                    targetState = currentIndex,
-                    transitionSpec = { fadeIn(tween(600)) togetherWith fadeOut(tween(600)) },
-                    label = "ad_transition"
-                ) { targetIndex ->
-                    
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        // إضافة مكتبة Coil لعرض الصورة من الرابط
-                        AsyncImage(
-                            model = ads[targetIndex].image_url,
-                            contentDescription = "الإعلان",
-                            contentScale = ContentScale.Crop, // للتأكد من ملء الصورة للبطاقة
-                            modifier = Modifier.fillMaxSize()
-                        )
-                        
-                        // طبقة شفافة داكنة (Overlay) لكي يظل النص الأبيض مقروءاً فوق أي صورة
-                        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
-                        
-                        // النصوص فوق الصورة
-                        Column(
-                            modifier = Modifier.fillMaxSize().padding(20.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = ads[targetIndex].title, 
-                                textAlign = TextAlign.Center, 
-                                color = Color.White, 
-                                fontWeight = FontWeight.ExtraBold, 
-                                fontSize = 20.sp, 
-                                lineHeight = 26.sp
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = ads[targetIndex].target_url ?: "", 
-                                textAlign = TextAlign.Center, 
-                                color = Color.White.copy(alpha = 0.9f), 
-                                fontWeight = FontWeight.Medium, 
-                                fontSize = 15.sp
-                            )
-                        }
-                    }
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            Box(modifier = Modifier.fillMaxSize()) {
+                
+                AsyncImage(
+                    model = ads[page].image_url,
+                    contentDescription = "الإعلان",
+                    contentScale = ContentScale.Crop, 
+                    modifier = Modifier.fillMaxSize()
+                )
+                
+                // طبقة التعتيم
+                Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
+                
+                // النصوص
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = ads[page].title, 
+                        textAlign = TextAlign.Center, 
+                        color = Color.White, 
+                        fontWeight = FontWeight.ExtraBold, 
+                        fontSize = 20.sp, 
+                        lineHeight = 26.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = ads[page].target_url ?: "", 
+                        textAlign = TextAlign.Center, 
+                        color = Color.White.copy(alpha = 0.9f), 
+                        fontWeight = FontWeight.Medium, 
+                        fontSize = 15.sp
+                    )
                 }
             }
         }
