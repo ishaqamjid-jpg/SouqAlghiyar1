@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,6 +29,10 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -49,8 +55,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.isaac.souqalghiyar.R
 import com.isaac.souqalghiyar.domain.model.Advertisement
 import kotlinx.coroutines.delay
+
 
 val PrimaryRed = Color(0xFFE53935)
 val DarkBackground = Color(0xFF121212)
@@ -73,7 +81,7 @@ fun MainScreen(
     val isSearchingVin by viewModel.isSearchingVin.collectAsState()
     val isLoadingData by viewModel.isLoadingData.collectAsState()
     val hasPendingOrders by viewModel.hasPendingOrders.collectAsState()
-    
+
     val context = LocalContext.current
 
     LaunchedEffect(userId) {
@@ -81,13 +89,16 @@ fun MainScreen(
     }
 
     var brandName by remember { mutableStateOf("") }
-    var vehicleModel by remember { mutableStateOf("") } 
-    var vehicleYear by remember { mutableStateOf("") }  
+    var vehicleModel by remember { mutableStateOf("") }
+    var vehicleYear by remember { mutableStateOf("") }
     var manufacture by remember { mutableStateOf("") }
     var vinNumber by remember { mutableStateOf("") }
 
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var selectedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    // التحكم في ظهور نافذة حول النظام
+    var showAboutDialog by remember { mutableStateOf(false) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -114,9 +125,16 @@ fun MainScreen(
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = { 
-                        Text("سوق الغيار اليمن", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp) 
+                // تم التعديل إلى CenterAlignedTopAppBar ليكون النص بالوسط تماماً
+                CenterAlignedTopAppBar(
+                    title = {
+                        Text("سوق الغيار", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
+                    },
+                    navigationIcon = {
+                        // أيقونة "حول النظام" في أعلى جهة اليمين (Navigation Icon في الـ RTL يكون يميناً تلقائياً)
+                        IconButton(onClick = { showAboutDialog = true }) {
+                            Icon(Icons.Default.Info, contentDescription = "حول النظام", tint = TextWhite, modifier = Modifier.size(26.dp))
+                        }
                     },
                     actions = {
                         IconButton(onClick = { navigateToOrders(userId) }) {
@@ -133,11 +151,11 @@ fun MainScreen(
                                     }
                                 }
                             ) {
-                                Icon(Icons.Default.ListAlt, contentDescription = "طلباتي", tint = TextWhite, modifier = Modifier.size(28.dp))
+                                Icon(Icons.Default.ListAlt, contentDescription = "طلباتي", tint = TextWhite, modifier = Modifier.size(26.dp))
                             }
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                         containerColor = Color.Black,
                         titleContentColor = PrimaryRed,
                         actionIconContentColor = TextWhite
@@ -145,7 +163,7 @@ fun MainScreen(
                     modifier = Modifier.shadow(8.dp)
                 )
             },
-            containerColor = DarkBackground 
+            containerColor = DarkBackground
         ) { innerPadding ->
             if (isLoadingData) {
                 Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
@@ -196,7 +214,7 @@ fun MainScreen(
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
-                    HorizontalDivider(color = SurfaceDark) 
+                    HorizontalDivider(color = SurfaceDark)
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text("لتعبئة الخانات تلقائياً يرجى إرفاق صورة لملصق الشاصي", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = TextGray, fontWeight = FontWeight.Medium, fontSize = 14.sp)
@@ -205,8 +223,8 @@ fun MainScreen(
                     PhotoPickerBox(
                         isUploaded = selectedBitmap != null,
                         onClick = { imagePickerLauncher.launch("image/*") },
-                        onClear = { 
-                            selectedBitmap = null 
+                        onClear = {
+                            selectedBitmap = null
                             selectedImageUri = null
                         }
                     )
@@ -237,24 +255,29 @@ fun MainScreen(
                     )
 
                     Spacer(modifier = Modifier.height(40.dp))
-                    
+
                     Button(
                         onClick = {
-                            navigateToRequestParts(brandName, vehicleModel, vehicleYear, manufacture, vinNumber.ifEmpty { "غير محدد" })
+                            navigateToRequestParts(brandName, vehicleModel, vehicleYear, manufacture, vinNumber.ifEmpty { "غير مححدد" })
                         },
                         modifier = Modifier.fillMaxWidth().height(60.dp).padding(bottom = 8.dp).shadow(if(isRequiredFieldsFilled) 8.dp else 0.dp, RoundedCornerShape(16.dp)),
                         shape = RoundedCornerShape(16.dp),
                         enabled = isRequiredFieldsFilled,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = PrimaryRed, 
+                            containerColor = PrimaryRed,
                             disabledContainerColor = SurfaceDark
                         )
                     ) {
                         Text("طلب قطع غيار", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = if (isRequiredFieldsFilled) TextWhite else TextGray)
                     }
-                    
+
                     Spacer(modifier = Modifier.height(20.dp))
                 }
+            }
+
+            // نافذة حول النظام المخصصة والجميلة
+            if (showAboutDialog) {
+                AboutSystemDialog(onDismiss = { showAboutDialog = false })
             }
         }
     }
@@ -279,11 +302,10 @@ fun CarDetailsFields(
     val yearsList = (2000..2026).map { it.toString() }.reversed()
     val madeInOptions = listOf("الولايات المتحدة الأمريكية", "مواصفات خليجي", "اليابان", "المانيا", "كندا", "غير معروف")
 
-    // تم تعديل لون الإطار هنا ليصبح أبيض
     val defaultTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
-        focusedBorderColor = TextWhite, unfocusedBorderColor = TextWhite, // إطار أبيض
-        focusedLabelColor = PrimaryRed, unfocusedLabelColor = TextWhite, // نص التوضيح أبيض عند عدم التحديد
+        focusedBorderColor = TextWhite, unfocusedBorderColor = TextWhite,
+        focusedLabelColor = PrimaryRed, unfocusedLabelColor = TextWhite,
         cursorColor = PrimaryRed,
         focusedContainerColor = SurfaceDark.copy(alpha = 0.5f),
         unfocusedContainerColor = SurfaceDark.copy(alpha = 0.3f)
@@ -318,7 +340,7 @@ fun CarDetailsFields(
         }
 
         OutlinedTextField(
-            value = vin, 
+            value = vin,
             onValueChange = onVinChange,
             label = { Text("رقم القعادة / الشاصي (17 خانة)") },
             modifier = Modifier.fillMaxWidth(),
@@ -342,7 +364,6 @@ fun CarDetailsFields(
 
 @Composable
 fun PhotoPickerBox(isUploaded: Boolean, onClick: () -> Unit, onClear: () -> Unit) {
-    // تم التعديل ليصبح لون الإطار أبيض في حال عدم وجود صورة
     val borderColor = if (isUploaded) SuccessGreen else TextWhite
     val bgColor = if (isUploaded) SuccessGreen.copy(alpha = 0.1f) else SurfaceDark.copy(alpha = 0.5f)
     Box(
@@ -371,7 +392,7 @@ fun PhotoPickerBox(isUploaded: Boolean, onClick: () -> Unit, onClear: () -> Unit
                 textAlign = TextAlign.Center
             )
         }
-        
+
         if (isUploaded) {
             IconButton(
                 onClick = onClear,
@@ -405,7 +426,7 @@ fun AnalyzeButton(isImageUploaded: Boolean, isAnalyzing: Boolean, onClick: () ->
     ) {
         Box(
             modifier = Modifier.fillMaxSize().background(
-                Brush.horizontalGradient(colors = listOf(PrimaryRed, Color(0xFF8E0000))), 
+                Brush.horizontalGradient(colors = listOf(PrimaryRed, Color(0xFF8E0000))),
                 shape = RoundedCornerShape(14.dp)
             ),
             contentAlignment = Alignment.Center
@@ -470,4 +491,118 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
             }
         }
     }
+}
+
+// --- Composable مخصص ومستقل لعرض نافذة حول النظام بشكل احترافي ومتناسق مع التطبيق ---
+@Composable
+fun AboutSystemDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("إغلاق", color = PrimaryRed, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+        },
+        containerColor = SurfaceDark,
+        shape = RoundedCornerShape(20.dp),
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // 1. الشعار في الوسط
+                Surface(
+                    modifier = Modifier
+                        .size(90.dp)
+                        .shadow(10.dp, CircleShape, spotColor = PrimaryRed),
+                    shape = CircleShape,
+                    color = DarkBackground
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.logo3),
+                        contentDescription = "الشعار",
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // 2. خدمة العملاء
+                Text(
+                    text = "خدمة العملاء",
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryRed,
+                    fontSize = 16.sp
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // أيقونة الاتصال ورقمه
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                ) {
+                    Icon(Icons.Default.Call, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("+967-777979719", color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                }
+
+                // أيقونة الواتساب (باستخدام CheckCircle بلون أخضر متميز كعلامة مخصصة)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                ) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("+967-736373788", color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                }
+
+                // البريد الإلكتروني
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                ) {
+                    Icon(Icons.Default.Email, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("ishaq.amjid@gmail.com", color = TextWhite, fontSize = 14.sp)
+                }
+
+                // العنوان
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                ) {
+                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("اليمن - صنعاء", color = TextWhite, fontSize = 15.sp)
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+                HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+                Spacer(modifier = Modifier.height(15.dp))
+
+                // 3. قسم حول النظام
+                Text(
+                    text = "حول النظام",
+                    fontWeight = FontWeight.ExtraBold,
+                    color = PrimaryRed,
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // النص التعريفي
+                Text(
+                    text = "سوق الغيار خدمه تابعه لشركه الحبيب للتجاره العامه  وهو تطبيق لشراء قطع غيار لكل انواع المركبات وايضا عبر علاقات مع جميع محلات قطع الغيار في اليمن وتوصيلها اليك . حيث يمكنك اضافه القطع التي تود شرائها بكل مواصفاتها ثم يتم ارسال فاتوره عرض سعر للموافقه عليها ثم يتم توصيلها اليك  تدعم الخدمه تسديد الفاتوره عند الاستلام لكسب ثقه العميل وايضا فحص القطعه قبل الاستلام والتأكد من مطابقه مواصفات الطلب .",
+                    color = TextGray,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 22.sp
+                )
+            }
+        }
+    )
 }
