@@ -52,10 +52,9 @@ import coil.compose.AsyncImage
 import com.isaac.souqalghiyar.domain.model.Advertisement
 import kotlinx.coroutines.delay
 
-// --- الألوان الاحترافية الجديدة (Dark Red Theme) ---
-val PrimaryRed = Color(0xFFE53935) // أحمر رياضي جذاب
-val DarkBackground = Color(0xFF121212) // أسود فخم للخلفية
-val SurfaceDark = Color(0xFF1E1E1E) // رمادي داكن للبطاقات
+val PrimaryRed = Color(0xFFE53935)
+val DarkBackground = Color(0xFF121212)
+val SurfaceDark = Color(0xFF1E1E1E)
 val TextWhite = Color(0xFFFFFFFF)
 val TextGray = Color(0xFFAAAAAA)
 val SuccessGreen = Color(0xFF388E3C)
@@ -139,14 +138,14 @@ fun MainScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Black, // شريط علوي أسود
-                        titleContentColor = PrimaryRed, // نص أحمر
+                        containerColor = Color.Black,
+                        titleContentColor = PrimaryRed,
                         actionIconContentColor = TextWhite
                     ),
                     modifier = Modifier.shadow(8.dp)
                 )
             },
-            containerColor = DarkBackground // خلفية التطبيق سوداء
+            containerColor = DarkBackground 
         ) { innerPadding ->
             if (isLoadingData) {
                 Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
@@ -197,7 +196,7 @@ fun MainScreen(
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
-                    HorizontalDivider(color = SurfaceDark) // فاصل داكن
+                    HorizontalDivider(color = SurfaceDark) 
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text("لتعبئة الخانات تلقائياً يرجى إرفاق صورة لملصق الشاصي", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = TextGray, fontWeight = FontWeight.Medium, fontSize = 14.sp)
@@ -280,11 +279,11 @@ fun CarDetailsFields(
     val yearsList = (2000..2026).map { it.toString() }.reversed()
     val madeInOptions = listOf("الولايات المتحدة الأمريكية", "مواصفات خليجي", "اليابان", "المانيا", "كندا", "غير معروف")
 
-    // ستايل الحقول متوافق مع الثيم الداكن والأحمر
+    // تم تعديل لون الإطار هنا ليصبح أبيض
     val defaultTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
-        focusedBorderColor = PrimaryRed, unfocusedBorderColor = SurfaceDark,
-        focusedLabelColor = PrimaryRed, unfocusedLabelColor = TextGray,
+        focusedBorderColor = TextWhite, unfocusedBorderColor = TextWhite, // إطار أبيض
+        focusedLabelColor = PrimaryRed, unfocusedLabelColor = TextWhite, // نص التوضيح أبيض عند عدم التحديد
         cursorColor = PrimaryRed,
         focusedContainerColor = SurfaceDark.copy(alpha = 0.5f),
         unfocusedContainerColor = SurfaceDark.copy(alpha = 0.3f)
@@ -343,7 +342,8 @@ fun CarDetailsFields(
 
 @Composable
 fun PhotoPickerBox(isUploaded: Boolean, onClick: () -> Unit, onClear: () -> Unit) {
-    val borderColor = if (isUploaded) SuccessGreen else SurfaceDark
+    // تم التعديل ليصبح لون الإطار أبيض في حال عدم وجود صورة
+    val borderColor = if (isUploaded) SuccessGreen else TextWhite
     val bgColor = if (isUploaded) SuccessGreen.copy(alpha = 0.1f) else SurfaceDark.copy(alpha = 0.5f)
     Box(
         modifier = Modifier
@@ -359,13 +359,13 @@ fun PhotoPickerBox(isUploaded: Boolean, onClick: () -> Unit, onClear: () -> Unit
             Icon(
                 imageVector = if (isUploaded) Icons.Default.CheckCircle else Icons.Default.PhotoCamera,
                 contentDescription = "الكاميرا",
-                tint = if (isUploaded) SuccessGreen else TextGray,
+                tint = if (isUploaded) SuccessGreen else TextWhite,
                 modifier = Modifier.size(36.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = if (isUploaded) "تم اختيار الصورة بنجاح" else "انقر لاختيار صورة ملصق الشاصي",
-                color = if (isUploaded) SuccessGreen else TextGray,
+                color = if (isUploaded) SuccessGreen else TextWhite,
                 fontWeight = if (isUploaded) FontWeight.Bold else FontWeight.Normal,
                 fontSize = 15.sp,
                 textAlign = TextAlign.Center
@@ -405,7 +405,6 @@ fun AnalyzeButton(isImageUploaded: Boolean, isAnalyzing: Boolean, onClick: () ->
     ) {
         Box(
             modifier = Modifier.fillMaxSize().background(
-                // تدرج لوني احترافي أحمر لزر الاستخراج
                 Brush.horizontalGradient(colors = listOf(PrimaryRed, Color(0xFF8E0000))), 
                 shape = RoundedCornerShape(14.dp)
             ),
@@ -460,7 +459,6 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             Box(modifier = Modifier.fillMaxSize()) {
                 AsyncImage(model = ads[page].image_url, contentDescription = "الإعلان", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                // تدرج لوني أسود خفيف فوق الصورة ليظل النص مقروءاً
                 Box(modifier = Modifier.fillMaxSize().background(
                     Brush.verticalGradient(colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)))
                 ))
