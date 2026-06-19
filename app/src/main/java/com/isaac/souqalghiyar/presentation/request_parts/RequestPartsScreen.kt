@@ -68,13 +68,14 @@ fun RequestPartsScreen(
 
     val isFormValid = itemsList.isNotEmpty() && location.isNotBlank() && deliveryLocation.isNotBlank()
 
+    // تم تعديل لون الإطار هنا ليصبح أبيض
     val customTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = TextWhite,
         unfocusedTextColor = TextWhite,
         focusedLabelColor = PrimaryRed,
-        unfocusedLabelColor = TextGray,
-        focusedBorderColor = PrimaryRed,
-        unfocusedBorderColor = SurfaceDark,
+        unfocusedLabelColor = TextWhite, // لتوضيح النص عند عدم التحديد
+        focusedBorderColor = TextWhite, // إطار أبيض عند التحديد
+        unfocusedBorderColor = TextWhite, // إطار أبيض عند عدم التحديد
         focusedContainerColor = SurfaceDark.copy(alpha = 0.5f),
         unfocusedContainerColor = SurfaceDark.copy(alpha = 0.3f),
         cursorColor = PrimaryRed
