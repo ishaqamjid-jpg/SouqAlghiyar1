@@ -47,12 +47,16 @@ class OrdersViewModel @Inject constructor(
         }
     }
 
-    // تم تحديث الدالة لتستقبل الملاحظات
-    // الرجاء التأكد من تحديث دالة updateOrderStatus في OrderRepository 
-    // لتستقبل الملاحظات وترفعها إلى Firebase
-    fun updateStatus(orderId: String, newStatus: String, approvalNotes: String = "", disapprovalNotes: String = "") {
+    // تم إضافة userId هنا لمعرفة صاحب الطلب
+    fun updateStatus(orderId: String, userId: String, newStatus: String, approvalNotes: String = "", disapprovalNotes: String = "") {
         viewModelScope.launch {
+            // تحديث حالة الطلب
             orderRepository.updateOrderStatus(orderId, newStatus, approvalNotes, disapprovalNotes)
+            
+            // إذا قام العميل برفض الفاتورة، نزيد عداد الرفض في حسابه
+            if (newStatus == "canceled") {
+                orderRepository.incrementUserRejections(userId)
+            }
         }
     }
 }
