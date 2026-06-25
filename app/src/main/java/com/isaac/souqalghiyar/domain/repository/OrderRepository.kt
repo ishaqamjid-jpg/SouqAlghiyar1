@@ -11,5 +11,12 @@ interface OrderRepository {
     fun getQualityTypes(): Flow<List<String>>
     fun getLocations(): Flow<List<String>>
     fun getUserOrders(userId: String): Flow<List<OrderWithItems>>
-    suspend fun updateOrderStatus(orderId: String, newStatus: String): Result<Unit>
+    
+    // التعديل هنا: إضافة حقول الملاحظات كقيمة افتراضية فارغة
+    suspend fun updateOrderStatus(
+        orderId: String, 
+        newStatus: String, 
+        approvalNotes: String = "", 
+        disapprovalNotes: String = ""
+    ): Result<Unit>
 }
