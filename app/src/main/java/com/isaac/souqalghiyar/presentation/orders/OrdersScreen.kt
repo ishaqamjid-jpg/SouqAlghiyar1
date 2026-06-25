@@ -148,7 +148,12 @@ fun OrdersScreen(
 fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
     val order = data.order
     val items = data.items
+    val localContext = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
+
+    // متغيرات لحالة أزرار الموافقة والرفض
+    var actionState by remember { mutableStateOf("") } // ""، "approve"، أو "disapprove"
+    var notesText by remember { mutableStateOf("") }
 
     val itemsTotal = items.sumOf { it.selling_price * it.quantity }
     val totalInvoice = itemsTotal + order.delivery_fees
@@ -279,31 +284,133 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                     val currentStatus = order.order_status.trim().lowercase()
                     if (currentStatus == "waiting for approval" || currentStatus == "waiting for approvel") {
                         Spacer(modifier = Modifier.height(16.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Button(
-                                onClick = { viewModel.updateStatus(order.order_id, "completed") },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("موافقة واشحن", fontWeight = FontWeight.Bold, color = Color.White)
-                            }
 
-                            OutlinedButton(
-                                onClick = { viewModel.updateStatus(order.order_id, "canceled") },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryRed),
-                                border = BorderStroke(1.dp, PrimaryRed),
-                                shape = RoundedCornerShape(8.dp)
+                        // عرض الأزرار الأساسية إذا لم يقم المستخدم باختيار قرار بعد
+                        AnimatedVisibility(visible = actionState == "") {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Icon(Icons.Default.Cancel, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("عدم الموافقة", fontWeight = FontWeight.Bold)
+                                Button(
+                                    onClick = { actionState = "approve" },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("موافقة واشحن", fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+
+                                OutlinedButton(
+                                    onClick = { actionState = "disapprove" },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryRed),
+                                    border = BorderStroke(1.dp, PrimaryRed),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(Icons.Default.Cancel, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("عدم الموافقة", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        // إظهار حقل الملاحظات في حال الموافقة
+                        AnimatedVisibility(visible = actionState == "approve") {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = notesText,
+                                    onValueChange = { notesText = it },
+                                    label = { Text("ملاحظات أخرى (رقم آخر للتواصل أو موقع دقيق)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color(0xFF66BB6A),
+                                        focusedLabelColor = Color(0xFF66BB6A),
+                                        focusedTextColor = TextWhite,
+                                        unfocusedTextColor = TextWhite
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Button(
+                                        onClick = {
+                                            if (notesText.isBlank()) {
+                                                Toast.makeText(localContext, "يرجى تعبئة الملاحظات", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                viewModel.updateStatus(order.order_id, "completed", approvalNotes = notesText, disapprovalNotes = "")
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("تأكيد الموافقة", fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = { actionState = ""; notesText = "" },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextGray),
+                                        border = BorderStroke(1.dp, TextGray),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("تراجع", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        // إظهار حقل سبب الرفض والإشعار التحذيري في حال عدم الموافقة
+                        AnimatedVisibility(visible = actionState == "disapprove") {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = notesText,
+                                    onValueChange = { notesText = it },
+                                    label = { Text("سبب عدم الموافقة (مثلاً: السعر غير مناسب)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = PrimaryRed,
+                                        focusedLabelColor = PrimaryRed,
+                                        focusedTextColor = TextWhite,
+                                        unfocusedTextColor = TextWhite
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "ملاحظة: في حال تم عدم الموافقة أكثر من فاتورتين سيتم فرض رسوم لتفعيل الحساب مستقبلاً.",
+                                    color = PrimaryRed,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Start
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Button(
+                                        onClick = {
+                                            if (notesText.isBlank()) {
+                                                Toast.makeText(localContext, "يرجى كتابة سبب عدم الموافقة", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                viewModel.updateStatus(order.order_id, "canceled", approvalNotes = "", disapprovalNotes = notesText)
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryRed),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("تأكيد الإلغاء", fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = { actionState = ""; notesText = "" },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextGray),
+                                        border = BorderStroke(1.dp, TextGray),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("تراجع", fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
                         }
                     }
