@@ -92,6 +92,27 @@ class OrderRepositoryImpl @Inject constructor(
         awaitClose { sub.remove() }
     }
 
+
+
+
+override suspend fun incrementUserRejections(userId: String): Result<Unit> {
+    return try {
+        // نستخدم FieldValue.increment لزيادة الرقم مباشرة من سيرفر Firebase بأمان
+        db.collection("users").document(userId)
+            .update("number_of_rejections", FieldValue.increment(1.0)).await()
+        Result.success(Unit)
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
+}
+
+
+
+
+
+
+
+
     override fun getUserOrders(userId: String): Flow<List<OrderWithItems>> = callbackFlow {
         val subscription = db.collection("orders")
             .whereEqualTo("user_id", userId)
