@@ -151,8 +151,7 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
     val localContext = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
 
-    // متغيرات لحالة أزرار الموافقة والرفض
-    var actionState by remember { mutableStateOf("") } // ""، "approve"، أو "disapprove"
+    var actionState by remember { mutableStateOf("") } 
     var notesText by remember { mutableStateOf("") }
 
     val itemsTotal = items.sumOf { it.selling_price * it.quantity }
@@ -285,7 +284,6 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                     if (currentStatus == "waiting for approval" || currentStatus == "waiting for approvel") {
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // عرض الأزرار الأساسية إذا لم يقم المستخدم باختيار قرار بعد
                         AnimatedVisibility(visible = actionState == "") {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -316,7 +314,6 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                             }
                         }
 
-                        // إظهار حقل الملاحظات في حال الموافقة
                         AnimatedVisibility(visible = actionState == "approve") {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 OutlinedTextField(
@@ -338,7 +335,8 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                                             if (notesText.isBlank()) {
                                                 Toast.makeText(localContext, "يرجى تعبئة الملاحظات", Toast.LENGTH_SHORT).show()
                                             } else {
-                                                viewModel.updateStatus(order.order_id, "completed", approvalNotes = notesText, disapprovalNotes = "")
+                                                // التعديل هنا: تمرير order.user_id
+                                                viewModel.updateStatus(order.order_id, order.user_id, "completed", approvalNotes = notesText, disapprovalNotes = "")
                                             }
                                         },
                                         modifier = Modifier.weight(1f),
@@ -361,7 +359,6 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                             }
                         }
 
-                        // إظهار حقل سبب الرفض والإشعار التحذيري في حال عدم الموافقة
                         AnimatedVisibility(visible = actionState == "disapprove") {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 OutlinedTextField(
@@ -391,7 +388,8 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                                             if (notesText.isBlank()) {
                                                 Toast.makeText(localContext, "يرجى كتابة سبب عدم الموافقة", Toast.LENGTH_SHORT).show()
                                             } else {
-                                                viewModel.updateStatus(order.order_id, "canceled", approvalNotes = "", disapprovalNotes = notesText)
+                                                // التعديل هنا: تمرير order.user_id
+                                                viewModel.updateStatus(order.order_id, order.user_id, "canceled", approvalNotes = "", disapprovalNotes = notesText)
                                             }
                                         },
                                         modifier = Modifier.weight(1f),
