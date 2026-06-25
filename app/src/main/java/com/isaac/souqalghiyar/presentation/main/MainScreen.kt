@@ -53,12 +53,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.isaac.souqalghiyar.R
 import com.isaac.souqalghiyar.domain.model.Advertisement
 import kotlinx.coroutines.delay
-
 
 val PrimaryRed = Color(0xFFE53935)
 val DarkBackground = Color(0xFF121212)
@@ -75,6 +75,7 @@ fun MainScreen(
     navigateToRequestParts: (String, String, String, String, String) -> Unit,
     navigateToOrders: (String) -> Unit
 ) {
+    val currentUser by viewModel.currentUser.collectAsState()
     val adsList by viewModel.adsList.collectAsState()
     val brandsList by viewModel.brandsList.collectAsState()
     val isAnalyzing by viewModel.isAnalyzing.collectAsState()
@@ -86,6 +87,7 @@ fun MainScreen(
 
     LaunchedEffect(userId) {
         viewModel.checkPendingOrders(userId)
+        viewModel.fetchUserData(userId) // جلب بيانات المستخدم فور الدخول
     }
 
     var brandName by remember { mutableStateOf("") }
@@ -96,8 +98,6 @@ fun MainScreen(
 
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var selectedBitmap by remember { mutableStateOf<Bitmap?>(null) }
-
-    // التحكم في ظهور نافذة حول النظام
     var showAboutDialog by remember { mutableStateOf(false) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -122,16 +122,44 @@ fun MainScreen(
 
     val isRequiredFieldsFilled = brandName.isNotBlank() && vehicleModel.isNotBlank() && vehicleYear.isNotBlank() && manufacture.isNotBlank()
 
+    // 1. شرط إيقاف الحساب (النافذة الإجبارية)
+    if (currentUser != null && currentUser!!.number_of_rejections > 2.0) {
+        AlertDialog(
+            onDismissRequest = { /* لا يفعل شيء، النافذة لا تُغلق */ },
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false
+            ),
+            title = {
+                Text(
+                    text = "تنبيه إيقاف الحساب",
+                    color = PrimaryRed,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 20.sp
+                )
+            },
+            text = {
+                Text(
+                    text = "تم ايقاف حسابك بسبب تكرار رفض الفواتير اكثر من مرتين . لتفعيل حسابك يجب فرض رسوم مبلغ وقدره ٢٠٠٠ ريال يمني .\n\nطريقه تسديد الرسوم :\nحواله الى محفظه بجيب الى حساب مشترك رقم 558933 \nوارسال الاشعار وتساب الى الرقم 777979719",
+                    color = TextWhite,
+                    fontSize = 16.sp,
+                    lineHeight = 26.sp
+                )
+            },
+            confirmButton = {}, // إزالة الزر لكي لا يتمكن من الخروج
+            containerColor = SurfaceDark,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Scaffold(
             topBar = {
-                // تم التعديل إلى CenterAlignedTopAppBar ليكون النص بالوسط تماماً
                 CenterAlignedTopAppBar(
                     title = {
                         Text("سوق الغيار", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
                     },
                     navigationIcon = {
-                        // أيقونة "حول النظام" في أعلى جهة اليمين (Navigation Icon في الـ RTL يكون يميناً تلقائياً)
                         IconButton(onClick = { showAboutDialog = true }) {
                             Icon(Icons.Default.Info, contentDescription = "حول النظام", tint = TextWhite, modifier = Modifier.size(26.dp))
                         }
@@ -183,6 +211,29 @@ fun MainScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Spacer(modifier = Modifier.height(16.dp))
+
+                    // 2. رسالة الترحيب باسم المستخدم
+                    if (currentUser != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "أهلاً بكم، ",
+                                color = TextGray,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = currentUser!!.display_name,
+                                color = PrimaryRed,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
                     AnimatedAdsCard(ads = adsList)
                     Spacer(modifier = Modifier.height(24.dp))
 
@@ -260,7 +311,11 @@ fun MainScreen(
                         onClick = {
                             navigateToRequestParts(brandName, vehicleModel, vehicleYear, manufacture, vinNumber.ifEmpty { "غير مححدد" })
                         },
-                        modifier = Modifier.fillMaxWidth().height(60.dp).padding(bottom = 8.dp).shadow(if(isRequiredFieldsFilled) 8.dp else 0.dp, RoundedCornerShape(16.dp)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(60.dp)
+                            .padding(bottom = 8.dp)
+                            .shadow(if (isRequiredFieldsFilled) 8.dp else 0.dp, RoundedCornerShape(16.dp)),
                         shape = RoundedCornerShape(16.dp),
                         enabled = isRequiredFieldsFilled,
                         colors = ButtonDefaults.buttonColors(
@@ -275,7 +330,6 @@ fun MainScreen(
                 }
             }
 
-            // نافذة حول النظام المخصصة والجميلة
             if (showAboutDialog) {
                 AboutSystemDialog(onDismiss = { showAboutDialog = false })
             }
@@ -283,6 +337,7 @@ fun MainScreen(
     }
 }
 
+// ... (تكملة الدوال الباقية بالأسفل مثل CarDetailsFields و PhotoPickerBox و AnalyzeButton و AnimatedAdsCard و AboutSystemDialog لم تتغير)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CarDetailsFields(
@@ -493,7 +548,6 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
     }
 }
 
-// --- Composable مخصص ومستقل لعرض نافذة حول النظام بشكل احترافي ومتناسق مع التطبيق ---
 @Composable
 fun AboutSystemDialog(onDismiss: () -> Unit) {
     AlertDialog(
@@ -512,7 +566,6 @@ fun AboutSystemDialog(onDismiss: () -> Unit) {
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 1. الشعار في الوسط
                 Surface(
                     modifier = Modifier
                         .size(90.dp)
@@ -529,7 +582,6 @@ fun AboutSystemDialog(onDismiss: () -> Unit) {
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // 2. خدمة العملاء
                 Text(
                     text = "خدمة العملاء",
                     fontWeight = FontWeight.Bold,
@@ -539,7 +591,6 @@ fun AboutSystemDialog(onDismiss: () -> Unit) {
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // أيقونة الاتصال ورقمه
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(vertical = 4.dp)
@@ -549,7 +600,6 @@ fun AboutSystemDialog(onDismiss: () -> Unit) {
                     Text("+967-777979719", color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
 
-                // أيقونة الواتساب (باستخدام CheckCircle بلون أخضر متميز كعلامة مخصصة)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(vertical = 4.dp)
@@ -559,7 +609,6 @@ fun AboutSystemDialog(onDismiss: () -> Unit) {
                     Text("+967-736373788", color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
 
-                // البريد الإلكتروني
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(vertical = 4.dp)
@@ -569,7 +618,6 @@ fun AboutSystemDialog(onDismiss: () -> Unit) {
                     Text("ishaq.amjid@gmail.com", color = TextWhite, fontSize = 14.sp)
                 }
 
-                // العنوان
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(vertical = 4.dp)
@@ -583,7 +631,6 @@ fun AboutSystemDialog(onDismiss: () -> Unit) {
                 HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
                 Spacer(modifier = Modifier.height(15.dp))
 
-                // 3. قسم حول النظام
                 Text(
                     text = "حول النظام",
                     fontWeight = FontWeight.ExtraBold,
@@ -594,7 +641,6 @@ fun AboutSystemDialog(onDismiss: () -> Unit) {
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // النص التعريفي
                 Text(
                     text = "سوق الغيار خدمه تابعه لشركه الحبيب للتجاره العامه  وهو تطبيق لشراء قطع غيار لكل انواع المركبات وايضا عبر علاقات مع جميع محلات قطع الغيار في اليمن وتوصيلها اليك . حيث يمكنك اضافه القطع التي تود شرائها بكل مواصفاتها ثم يتم ارسال فاتوره عرض سعر للموافقه عليها ثم يتم توصيلها اليك  تدعم الخدمه تسديد الفاتوره عند الاستلام لكسب ثقه العميل وايضا فحص القطعه قبل الاستلام والتأكد من مطابقه مواصفات الطلب .",
                     color = TextGray,
