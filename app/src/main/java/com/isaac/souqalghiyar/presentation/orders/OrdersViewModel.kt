@@ -27,13 +27,12 @@ class OrdersViewModel @Inject constructor(
     private var fetchJob: Job? = null
 
     fun fetchUserOrders(userId: String) {
-        // إذا كان المعرف فارغاً، أوقف التحميل ولا تعلق الشاشة
         if (userId.isBlank()) {
             _isLoading.value = false
             return
         }
 
-        fetchJob?.cancel() // إلغاء أي بحث سابق لمنع تداخل البيانات
+        fetchJob?.cancel() 
         fetchJob = viewModelScope.launch {
             _isLoading.value = true
             orderRepository.getUserOrders(userId)
@@ -48,9 +47,12 @@ class OrdersViewModel @Inject constructor(
         }
     }
 
-    fun updateStatus(orderId: String, newStatus: String) {
+    // تم تحديث الدالة لتستقبل الملاحظات
+    // الرجاء التأكد من تحديث دالة updateOrderStatus في OrderRepository 
+    // لتستقبل الملاحظات وترفعها إلى Firebase
+    fun updateStatus(orderId: String, newStatus: String, approvalNotes: String = "", disapprovalNotes: String = "") {
         viewModelScope.launch {
-            orderRepository.updateOrderStatus(orderId, newStatus)
+            orderRepository.updateOrderStatus(orderId, newStatus, approvalNotes, disapprovalNotes)
         }
     }
 }
