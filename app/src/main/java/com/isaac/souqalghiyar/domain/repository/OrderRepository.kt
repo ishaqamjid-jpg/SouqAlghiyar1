@@ -19,4 +19,8 @@ interface OrderRepository {
         approvalNotes: String = "", 
         disapprovalNotes: String = ""
     ): Result<Unit>
+
+
+suspend fun incrementUserRejections(userId: String): Result<Unit>
+
 }
