@@ -136,9 +136,20 @@ class OrderRepositoryImpl @Inject constructor(
         awaitClose { subscription.remove() }
     }
 
-    override suspend fun updateOrderStatus(orderId: String, newStatus: String): Result<Unit> {
+    // التعديل هنا لرفع حالة الطلب مع ملاحظات الموافقة والرفض
+    override suspend fun updateOrderStatus(
+        orderId: String, 
+        newStatus: String,
+        approvalNotes: String,
+        disapprovalNotes: String
+    ): Result<Unit> {
         return try {
-            db.collection("orders").document(orderId).update("order_status", newStatus).await()
+            val updates = mapOf(
+                "order_status" to newStatus,
+                "approval_notes" to approvalNotes,
+                "disapproval_notes" to disapprovalNotes
+            )
+            db.collection("orders").document(orderId).update(updates).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
