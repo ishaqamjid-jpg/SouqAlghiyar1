@@ -8,6 +8,6 @@ data class users(
     val display_name: String = "",
     val fcm_token: String = "",
     val status: String = "active",
-     val number_of_rejections: 
+    val number_of_rejections: Double = 0.0,
     val created_at: Timestamp? = null
 )
