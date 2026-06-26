@@ -6,9 +6,13 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.isaac.souqalghiyar.data.repository.AuthRepositoryImpl
 import com.isaac.souqalghiyar.data.repository.MainRepositoryImpl
 import com.isaac.souqalghiyar.data.repository.OrderRepositoryImpl
+// 👇 الاستيرادات الجديدة التي أضفناها
+import com.isaac.souqalghiyar.data.repository.UserRepositoryImpl
 import com.isaac.souqalghiyar.domain.repository.AuthRepository
 import com.isaac.souqalghiyar.domain.repository.MainRepository
 import com.isaac.souqalghiyar.domain.repository.OrderRepository
+// 👇 الاستيرادات الجديدة التي أضفناها
+import com.isaac.souqalghiyar.domain.repository.UserRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -48,5 +52,12 @@ object AppModule {
     @Singleton
     fun provideOrderRepository(firestore: FirebaseFirestore): OrderRepository {
         return OrderRepositoryImpl(firestore)
+    }
+
+    // 👇 الدالة الجديدة التي ستحل مشكلة MissingBinding
+    @Provides
+    @Singleton
+    fun provideUserRepository(firestore: FirebaseFirestore): UserRepository {
+        return UserRepositoryImpl(firestore)
     }
 }

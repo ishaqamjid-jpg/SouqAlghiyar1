@@ -13,6 +13,16 @@ class AuthRepositoryImpl @Inject constructor(
     private val sharedPref: SharedPreferences
 ) : AuthRepository {
 
+    override suspend fun checkUserExists(phone: String): Result<Boolean> {
+        return try {
+            // نستخدم phone_number لأن هذا هو اسم الحقل في الفايربيز لديك
+            val query = db.collection("users").whereEqualTo("phone_number", phone).get().await()
+            Result.success(!query.isEmpty)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override suspend fun authenticateUser(phone: String, name: String, isRegisterMode: Boolean): Result<String> {
         return try {
             val usersRef = db.collection("users")
@@ -33,9 +43,6 @@ class AuthRepositoryImpl @Inject constructor(
                 Result.success(newUserRef.id)
             } else {
                 if (querySnapshot.isEmpty) {
-                    if (phone == "777777777") { // وصول استثنائي للمطور
-                        return Result.success("dev_user_123")
-                    }
                     return Result.failure(Exception("رقم الهاتف غير مسجل. يرجى إنشاء حساب جديد."))
                 }
                 val userDoc = querySnapshot.documents.first()
@@ -58,5 +65,9 @@ class AuthRepositoryImpl @Inject constructor(
 
     override fun checkIsLoggedIn(): Boolean {
         return sharedPref.getBoolean("is_logged_in", false)
+    }
+
+    override fun getUserId(): String? {
+        return sharedPref.getString("user_id", null)
     }
 }

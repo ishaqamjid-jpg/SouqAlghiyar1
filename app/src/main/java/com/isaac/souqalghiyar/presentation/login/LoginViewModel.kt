@@ -11,6 +11,7 @@ import javax.inject.Inject
 data class LoginUiState(
     val isLoading: Boolean = false,
     val isSuccess: Boolean = false,
+    val userId: String? = null,
     val error: String? = null
 )
 
@@ -45,7 +46,10 @@ class LoginViewModel @Inject constructor(
 
     init {
         if (authRepository.checkIsLoggedIn()) {
-            _uiState.value = LoginUiState(isSuccess = true)
+            val savedUserId = authRepository.getUserId()
+            if (savedUserId != null) {
+                _uiState.value = LoginUiState(isSuccess = true, userId = savedUserId)
+            }
         }
     }
 
@@ -66,38 +70,47 @@ class LoginViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
         viewModelScope.launch {
-            val result = authRepository.authenticateUser(currentPhone, currentName, _isRegisterMode.value)
-            result.fold(
-                onSuccess = { userId ->
-                    if (_rememberMe.value) {
-                        authRepository.saveSessionLocally(userId, currentName, currentPhone)
+            val existsResult = authRepository.checkUserExists(currentPhone)
+
+            existsResult.fold(
+                onSuccess = { userExists ->
+                    if (!_isRegisterMode.value && !userExists) {
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            error = "هذا الرقم غير مسجل لدينا، يرجى إنشاء حساب جديد"
+                        )
+                        return@launch
                     }
-                    _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
-                    onSuccess(userId)
+
+                    if (_isRegisterMode.value && userExists) {
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            error = "هذا الرقم مسجل مسبقاً، يرجى تسجيل الدخول بدلاً من ذلك"
+                        )
+                        return@launch
+                    }
+
+                    val result = authRepository.authenticateUser(currentPhone, currentName, _isRegisterMode.value)
+                    result.fold(
+                        onSuccess = { userId ->
+                            if (_rememberMe.value) {
+                                authRepository.saveSessionLocally(userId, currentName, currentPhone)
+                            }
+                            _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true, userId = userId)
+                            onSuccess(userId)
+                        },
+                        onFailure = { error ->
+                            _uiState.value = _uiState.value.copy(isLoading = false, error = error.message)
+                        }
+                    )
                 },
-                onFailure = { error ->
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = error.message)
+                onFailure = {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = "حدث خطأ أثناء التحقق من الرقم، تأكد من اتصالك بالإنترنت."
+                    )
                 }
             )
-        }
-    }
-
-    // --- تم تعديل هذه الدالة لتطابق بيانات الـ Firebase الخاصة بك ---
-    fun testLogin(onSuccess: (String) -> Unit) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-            kotlinx.coroutines.delay(500)
-
-            // البيانات المأخوذة من صورة قاعدة البيانات المرفقة
-            val testUserId = "test_user_123"
-            val testUserName = "امجد"
-            val testUserPhone = "+967770000000"
-
-            // حفظ الجلسة لكي يعمل التطبيق وكأن "أمجد" هو من سجل الدخول
-            authRepository.saveSessionLocally(testUserId, testUserName, testUserPhone)
-
-            _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
-            onSuccess(testUserId)
         }
     }
 }

@@ -20,7 +20,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.*
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.isaac.souqalghiyar.R
@@ -52,12 +51,14 @@ fun LoginScreen(
     val nameFocusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
-    // حالة التحكم بظهور نافذة حول النظام
     var showAboutDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
-            navigateToMain(phone.ifEmpty { "dev_test_123" })
+            val passedId = uiState.userId ?: ""
+            if (passedId.isNotEmpty()) {
+                navigateToMain(passedId)
+            }
         }
     }
 
@@ -67,11 +68,10 @@ fun LoginScreen(
                 .fillMaxSize()
                 .background(DarkBackground)
         ) {
-            // أيقونة حول النظام في أعلى الركن اليمين
             IconButton(
                 onClick = { showAboutDialog = true },
                 modifier = Modifier
-                    .align(Alignment.TopStart) // يمثل اليمين العلوي في نظام الـ RTL
+                    .align(Alignment.TopStart)
                     .padding(16.dp)
             ) {
                 Icon(
@@ -230,19 +230,6 @@ fun LoginScreen(
                     )
                 }
 
-                TextButton(onClick = {
-                    val hardcodedDeveloperId = "yP37r324rJZpPDR2xWzL"
-                    navigateToMain(hardcodedDeveloperId)
-                }) {
-                    Text(
-                        text = "تخطي الدخول (للمطور فقط)",
-                        color = PrimaryRed,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        textDecoration = TextDecoration.Underline
-                    )
-                }
-
                 uiState.error?.let {
                     Spacer(Modifier.height(10.dp))
                     Text(
@@ -255,7 +242,6 @@ fun LoginScreen(
                 }
             }
 
-            // عرض نافذة حول النظام عند تفعيل الحالة
             if (showAboutDialog) {
                 AboutSystemDialog(onDismiss = { showAboutDialog = false })
             }
@@ -263,7 +249,6 @@ fun LoginScreen(
     }
 }
 
-// --- إضافة النافذة هنا أيضاً ليتعرف عليها ملف الـ Login ---
 @Composable
 private fun AboutSystemDialog(onDismiss: () -> Unit) {
     AlertDialog(

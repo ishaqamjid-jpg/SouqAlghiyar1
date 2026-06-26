@@ -16,8 +16,8 @@ data class Order(
     val delivery_location: String = "",
     val delivery_fees: Double = 0.0,
     val order_status: String = "pending",
- val approval_notes: string ="",
-val disapproval_notes: string ="",
+    val approval_notes:String = "",
+    val disapproval_notes: String ="",
     val created_at: Timestamp? = null
 
 )
