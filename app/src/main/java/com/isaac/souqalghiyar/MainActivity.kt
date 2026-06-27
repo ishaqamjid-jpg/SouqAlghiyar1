@@ -62,8 +62,21 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("request_parts/$userId/$safeBrand/$safeName/$safeModel/$safeManuf/$safeVin")
                                 },
                                 navigateToOrders = { passedUserId ->
-                                    // التعديل: تمرير الـ userId الذي يصل من الواجهة الرئيسية إلى مسار شاشة الطلبات
+                                    // تمرير الـ userId الذي يصل من الواجهة الرئيسية إلى مسار شاشة الطلبات
                                     navController.navigate("orders/$passedUserId")
+                                },
+                                navigateToLogin = {
+                                    // 1. مسح بيانات تسجيل الدخول من SharedPreferences
+                                    sharedPref.edit().apply {
+                                        putBoolean("is_logged_in", false)
+                                        putString("user_id", "")
+                                        apply()
+                                    }
+                                    
+                                    // 2. التوجيه لشاشة تسجيل الدخول ومسح مكدس الشاشات (Back Stack) بالكامل
+                                    navController.navigate("login") {
+                                        popUpTo(0) { inclusive = true } // لمنع العودة للشاشة الرئيسية بزر الرجوع
+                                    }
                                 }
                             )
                         }
@@ -87,7 +100,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // التعديل: إضافة استقبال المتغير {userId} في مسار الطلبات لضمان عدم ضياع المعرف
+                        // إضافة استقبال المتغير {userId} في مسار الطلبات لضمان عدم ضياع المعرف
                         composable("orders/{userId}") { backStackEntry ->
                             val routeUserId = backStackEntry.arguments?.getString("userId") ?: ""
                             // كخطوة أمان إضافية: لو لم يصل من الـ Navigation، نأخذه من الـ SharedPreferences
