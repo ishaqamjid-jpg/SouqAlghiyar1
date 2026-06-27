@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.ExitToApp // تم إضافة أيقونة تسجيل الخروج
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -73,7 +74,8 @@ fun MainScreen(
     userId: String,
     viewModel: MainViewModel = hiltViewModel(),
     navigateToRequestParts: (String, String, String, String, String) -> Unit,
-    navigateToOrders: (String) -> Unit
+    navigateToOrders: (String) -> Unit,
+    navigateToLogin: () -> Unit // إضافة دالة التوجيه لتسجيل الخروج
 ) {
     val currentUser by viewModel.currentUser.collectAsState()
     val adsList by viewModel.adsList.collectAsState()
@@ -106,7 +108,7 @@ fun MainScreen(
         selectedImageUri = uri
         if (uri != null) {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION.CODES.P) {
                     val source = ImageDecoder.createSource(context.contentResolver, uri)
                     selectedBitmap = ImageDecoder.decodeBitmap(source)
                 } else {
@@ -123,7 +125,8 @@ fun MainScreen(
     val isRequiredFieldsFilled = brandName.isNotBlank() && vehicleModel.isNotBlank() && vehicleYear.isNotBlank() && manufacture.isNotBlank()
 
     // 1. شرط إيقاف الحساب (النافذة الإجبارية)
-    if (currentUser != null && currentUser!!.number_of_rejections > 2.0) {
+    // تم التعديل إلى >= 2.0 بدلاً من > 2.0 ليقوم بحظر الحساب عند الوصول إلى رفض فاتورتين بالضبط
+    if (currentUser != null && currentUser!!.number_of_rejections >= 2.0) {
         AlertDialog(
             onDismissRequest = { /* لا يفعل شيء، النافذة لا تُغلق */ },
             properties = DialogProperties(
@@ -165,6 +168,10 @@ fun MainScreen(
                         }
                     },
                     actions = {
+                        // إضافة زر تسجيل الخروج
+                        IconButton(onClick = navigateToLogin) {
+                            Icon(Icons.Default.ExitToApp, contentDescription = "تسجيل خروج", tint = PrimaryRed, modifier = Modifier.size(26.dp))
+                        }
                         IconButton(onClick = { navigateToOrders(userId) }) {
                             BadgedBox(
                                 badge = {
@@ -337,7 +344,6 @@ fun MainScreen(
     }
 }
 
-// ... (تكملة الدوال الباقية بالأسفل مثل CarDetailsFields و PhotoPickerBox و AnalyzeButton و AnimatedAdsCard و AboutSystemDialog لم تتغير)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CarDetailsFields(
