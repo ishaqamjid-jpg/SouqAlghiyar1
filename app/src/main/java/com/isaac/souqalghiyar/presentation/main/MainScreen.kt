@@ -1,10 +1,11 @@
 package com.isaac.souqalghiyar.presentation.main
 
+import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.ImageDecoder
+import android.graphics.BitmapFactory
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -33,7 +34,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.ExitToApp // تم إضافة أيقونة تسجيل الخروج
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -68,6 +69,21 @@ val TextWhite = Color(0xFFFFFFFF)
 val TextGray = Color(0xFFAAAAAA)
 val SuccessGreen = Color(0xFF388E3C)
 
+// دالة فحص الإنترنت أضفناها هنا أيضاً
+fun isInternetAvailable(context: Context): Boolean {
+    val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    } else {
+        @Suppress("DEPRECATION")
+        val networkInfo = connectivityManager.activeNetworkInfo ?: return false
+        @Suppress("DEPRECATION")
+        return networkInfo.isConnected
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -75,7 +91,7 @@ fun MainScreen(
     viewModel: MainViewModel = hiltViewModel(),
     navigateToRequestParts: (String, String, String, String, String) -> Unit,
     navigateToOrders: (String) -> Unit,
-    navigateToLogin: () -> Unit // إضافة دالة التوجيه لتسجيل الخروج
+    navigateToLogin: () -> Unit
 ) {
     val currentUser by viewModel.currentUser.collectAsState()
     val adsList by viewModel.adsList.collectAsState()
@@ -89,7 +105,7 @@ fun MainScreen(
 
     LaunchedEffect(userId) {
         viewModel.checkPendingOrders(userId)
-        viewModel.fetchUserData(userId) // جلب بيانات المستخدم فور الدخول
+        viewModel.fetchUserData(userId)
     }
 
     var brandName by remember { mutableStateOf("") }
@@ -108,13 +124,9 @@ fun MainScreen(
         selectedImageUri = uri
         if (uri != null) {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION.CODES.P) {
-                    val source = ImageDecoder.createSource(context.contentResolver, uri)
-                    selectedBitmap = ImageDecoder.decodeBitmap(source)
-                } else {
-                    @Suppress("DEPRECATION")
-                    selectedBitmap = MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
-                }
+                val inputStream = context.contentResolver.openInputStream(uri)
+                selectedBitmap = BitmapFactory.decodeStream(inputStream)
+                inputStream?.close()
             } catch (e: Exception) {
                 Toast.makeText(context, "فشل في قراءة الصورة", Toast.LENGTH_SHORT).show()
                 selectedBitmap = null
@@ -124,11 +136,9 @@ fun MainScreen(
 
     val isRequiredFieldsFilled = brandName.isNotBlank() && vehicleModel.isNotBlank() && vehicleYear.isNotBlank() && manufacture.isNotBlank()
 
-    // 1. شرط إيقاف الحساب (النافذة الإجبارية)
-    // تم التعديل إلى >= 2.0 بدلاً من > 2.0 ليقوم بحظر الحساب عند الوصول إلى رفض فاتورتين بالضبط
     if (currentUser != null && currentUser!!.number_of_rejections >= 2.0) {
         AlertDialog(
-            onDismissRequest = { /* لا يفعل شيء، النافذة لا تُغلق */ },
+            onDismissRequest = { },
             properties = DialogProperties(
                 dismissOnBackPress = false,
                 dismissOnClickOutside = false
@@ -149,7 +159,7 @@ fun MainScreen(
                     lineHeight = 26.sp
                 )
             },
-            confirmButton = {}, // إزالة الزر لكي لا يتمكن من الخروج
+            confirmButton = {},
             containerColor = SurfaceDark,
             shape = RoundedCornerShape(16.dp)
         )
@@ -168,11 +178,17 @@ fun MainScreen(
                         }
                     },
                     actions = {
-                        // إضافة زر تسجيل الخروج
                         IconButton(onClick = navigateToLogin) {
                             Icon(Icons.Default.ExitToApp, contentDescription = "تسجيل خروج", tint = PrimaryRed, modifier = Modifier.size(26.dp))
                         }
-                        IconButton(onClick = { navigateToOrders(userId) }) {
+                        IconButton(onClick = {
+                            // التعديل 1: فحص الإنترنت قبل الانتقال للطلبات
+                            if (isInternetAvailable(context)) {
+                                navigateToOrders(userId)
+                            } else {
+                                Toast.makeText(context, "لا يوجد اتصال بالإنترنت", Toast.LENGTH_SHORT).show()
+                            }
+                        }) {
                             BadgedBox(
                                 badge = {
                                     if (hasPendingOrders) {
@@ -219,7 +235,6 @@ fun MainScreen(
                 ) {
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // 2. رسالة الترحيب باسم المستخدم
                     if (currentUser != null) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -255,19 +270,24 @@ fun MainScreen(
                         vin = vinNumber, onVinChange = { vinNumber = it },
                         isSearchingVin = isSearchingVin,
                         onSearchVin = { searchVin ->
-                            viewModel.searchByVin(
-                                vin = searchVin,
-                                onSuccess = { fetchedBrand, fetchedModel, fetchedYear, fetchedMadeIn ->
-                                    brandName = fetchedBrand
-                                    vehicleModel = fetchedModel
-                                    vehicleYear = fetchedYear
-                                    manufacture = fetchedMadeIn
-                                    Toast.makeText(context, "تم العثور على بيانات المركبة", Toast.LENGTH_SHORT).show()
-                                },
-                                onError = { errorMsg ->
-                                    Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
-                                }
-                            )
+                            // التعديل 2: فحص الإنترنت قبل البحث برقم الشاصي
+                            if (isInternetAvailable(context)) {
+                                viewModel.searchByVin(
+                                    vin = searchVin,
+                                    onSuccess = { fetchedBrand, fetchedModel, fetchedYear, fetchedMadeIn ->
+                                        brandName = fetchedBrand
+                                        vehicleModel = fetchedModel
+                                        vehicleYear = fetchedYear
+                                        manufacture = fetchedMadeIn
+                                        Toast.makeText(context, "تم العثور على بيانات المركبة", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onError = { errorMsg ->
+                                        Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
+                                    }
+                                )
+                            } else {
+                                Toast.makeText(context, "لا يوجد اتصال بالإنترنت للبحث", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     )
 
@@ -293,21 +313,26 @@ fun MainScreen(
                         isImageUploaded = selectedBitmap != null,
                         isAnalyzing = isAnalyzing,
                         onClick = {
-                            selectedBitmap?.let { bitmap ->
-                                viewModel.analyzeVinImageFromBitmap(
-                                    bitmap = bitmap,
-                                    onSuccess = { brand, model, year, madeIn, vin ->
-                                        brandName = brand
-                                        vehicleModel = model
-                                        vehicleYear = year
-                                        manufacture = madeIn
-                                        vinNumber = vin
-                                        Toast.makeText(context, "تم استخراج البيانات بنجاح", Toast.LENGTH_LONG).show()
-                                    },
-                                    onError = { errorMsg ->
-                                        Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
-                                    }
-                                )
+                            // التعديل 3: فحص الإنترنت قبل استخراج البيانات من الصورة
+                            if (isInternetAvailable(context)) {
+                                selectedBitmap?.let { bitmap ->
+                                    viewModel.analyzeVinImageFromBitmap(
+                                        bitmap = bitmap,
+                                        onSuccess = { brand, model, year, madeIn, vin ->
+                                            brandName = brand
+                                            vehicleModel = model
+                                            vehicleYear = year
+                                            manufacture = madeIn
+                                            vinNumber = vin
+                                            Toast.makeText(context, "تم استخراج البيانات بنجاح", Toast.LENGTH_LONG).show()
+                                        },
+                                        onError = { errorMsg ->
+                                            Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
+                                        }
+                                    )
+                                }
+                            } else {
+                                Toast.makeText(context, "الرجاء التحقق من الإنترنت لتحليل الصورة", Toast.LENGTH_SHORT).show()
                             }
                         }
                     )
@@ -316,7 +341,12 @@ fun MainScreen(
 
                     Button(
                         onClick = {
-                            navigateToRequestParts(brandName, vehicleModel, vehicleYear, manufacture, vinNumber.ifEmpty { "غير مححدد" })
+                            // التعديل 4: فحص الإنترنت قبل الانتقال لواجهة طلب القطع
+                            if (isInternetAvailable(context)) {
+                                navigateToRequestParts(brandName, vehicleModel, vehicleYear, manufacture, vinNumber.ifEmpty { "غير محدد" })
+                            } else {
+                                Toast.makeText(context, "الرجاء الاتصال بالإنترنت لإرسال الطلب", Toast.LENGTH_SHORT).show()
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
