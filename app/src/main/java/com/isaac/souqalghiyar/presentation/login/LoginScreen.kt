@@ -1,5 +1,9 @@
 package com.isaac.souqalghiyar.presentation.login
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -14,6 +18,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
@@ -21,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.isaac.souqalghiyar.R
 import androidx.compose.material.icons.Icons
@@ -36,6 +42,21 @@ val SurfaceDark = Color(0xFF1E1E1E)
 val TextWhite = Color(0xFFFFFFFF)
 val TextGray = Color(0xFFAAAAAA)
 
+// دالة التحقق من توفر الإنترنت
+fun isInternetAvailable(context: Context): Boolean {
+    val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    } else {
+        @Suppress("DEPRECATION")
+        val networkInfo = connectivityManager.activeNetworkInfo ?: return false
+        @Suppress("DEPRECATION")
+        return networkInfo.isConnected
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
@@ -50,6 +71,7 @@ fun LoginScreen(
 
     val nameFocusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
 
     var showAboutDialog by remember { mutableStateOf(false) }
 
@@ -67,12 +89,15 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(DarkBackground)
+                .systemBarsPadding() // لتجنب التداخل مع شريط الإشعارات العلوي
         ) {
+            // زر المعلومات
             IconButton(
                 onClick = { showAboutDialog = true },
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(16.dp)
+                    .zIndex(1f) // لضمان أولوية الضغط عليه وعدم حجبه بواسطة عناصر أخرى
             ) {
                 Icon(
                     imageVector = Icons.Default.Info,
@@ -91,20 +116,15 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(Modifier.height(40.dp))
-                Surface(
-                    modifier = Modifier
-                        .size(120.dp)
-                        .shadow(15.dp, CircleShape, spotColor = PrimaryRed.copy(alpha = 0.5f)),
-                    shape = CircleShape,
-                    color = SurfaceDark
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.logo3),
-                        contentDescription = null,
-                        modifier = Modifier.padding(15.dp)
-                    )
-                }
-                Spacer(Modifier.height(25.dp))
+                
+                // الشعار المحدث: إزالة الدائرة وجعله شفافاً وأكبر
+                Image(
+                    painter = painterResource(R.drawable.logo3),
+                    contentDescription = "الشعار",
+                    modifier = Modifier.size(160.dp)
+                )
+                
+                Spacer(Modifier.height(15.dp))
                 Text(
                     text = "سوق الغيار",
                     fontSize = 28.sp,
@@ -137,7 +157,11 @@ fun LoginScreen(
                         onNext = { nameFocusRequester.requestFocus() },
                         onDone = {
                             focusManager.clearFocus()
-                            if (!uiState.isLoading) viewModel.authenticateUser { navigateToMain(it) }
+                            if (!isInternetAvailable(context)) {
+                                Toast.makeText(context, "يرجى التحقق من اتصالك بالإنترنت", Toast.LENGTH_SHORT).show()
+                            } else if (!uiState.isLoading) {
+                                viewModel.authenticateUser { navigateToMain(it) }
+                            }
                         }
                     ),
                     shape = RoundedCornerShape(12.dp),
@@ -159,7 +183,11 @@ fun LoginScreen(
                             keyboardActions = KeyboardActions(
                                 onDone = {
                                     focusManager.clearFocus()
-                                    if (!uiState.isLoading) viewModel.authenticateUser { navigateToMain(it) }
+                                    if (!isInternetAvailable(context)) {
+                                        Toast.makeText(context, "يرجى التحقق من اتصالك بالإنترنت", Toast.LENGTH_SHORT).show()
+                                    } else if (!uiState.isLoading) {
+                                        viewModel.authenticateUser { navigateToMain(it) }
+                                    }
                                 }
                             ),
                             shape = RoundedCornerShape(12.dp),
@@ -198,7 +226,11 @@ fun LoginScreen(
                 Button(
                     onClick = {
                         focusManager.clearFocus()
-                        viewModel.authenticateUser { navigateToMain(it) }
+                        if (!isInternetAvailable(context)) {
+                            Toast.makeText(context, "يرجى التحقق من اتصالك بالإنترنت", Toast.LENGTH_SHORT).show()
+                        } else if (!uiState.isLoading) {
+                            viewModel.authenticateUser { navigateToMain(it) }
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -267,6 +299,7 @@ private fun AboutSystemDialog(onDismiss: () -> Unit) {
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // الشعار داخل الديالوج يُفضل بقائه كدائرة أو كما تحب
                 Surface(
                     modifier = Modifier
                         .size(90.dp)
