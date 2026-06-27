@@ -90,6 +90,7 @@ class LoginViewModel @Inject constructor(
                         return@launch
                     }
 
+                    // يتم التحقق الفعلي هنا عبر Firebase داخل الـ authRepository
                     val result = authRepository.authenticateUser(currentPhone, currentName, _isRegisterMode.value)
                     result.fold(
                         onSuccess = { userId ->
