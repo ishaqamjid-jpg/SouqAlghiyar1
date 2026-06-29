@@ -7,6 +7,7 @@ import com.isaac.souqalghiyar.domain.model.Advertisement
 import com.isaac.souqalghiyar.domain.model.users
 import com.isaac.souqalghiyar.domain.repository.MainRepository
 import com.isaac.souqalghiyar.domain.repository.UserRepository
+import com.isaac.souqalghiyar.domain.repository.NotificationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,8 @@ import javax.inject.Inject
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val repository: MainRepository,
-    private val userRepository: UserRepository // تمت الإضافة للاتصال بجدول المستخدمين
+    private val userRepository: UserRepository,
+    private val notificationRepository: NotificationRepository
 ) : ViewModel() {
 
     private val _currentUser = MutableStateFlow<users?>(null)
@@ -42,6 +44,9 @@ class MainViewModel @Inject constructor(
     private val _hasPendingOrders = MutableStateFlow(false)
     val hasPendingOrders: StateFlow<Boolean> = _hasPendingOrders.asStateFlow()
 
+    private val _hasUnreadNotifications = MutableStateFlow(false)
+    val hasUnreadNotifications: StateFlow<Boolean> = _hasUnreadNotifications.asStateFlow()
+
     init {
         fetchInitialData()
     }
@@ -64,6 +69,12 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             userRepository.getUserData(userId).collect { user ->
                 _currentUser.value = user
+            }
+        }
+        
+        viewModelScope.launch {
+            notificationRepository.getUserNotifications(userId).collect { alarms ->
+                _hasUnreadNotifications.value = alarms.any { !it.isRead }
             }
         }
     }
