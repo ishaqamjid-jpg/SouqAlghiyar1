@@ -66,16 +66,15 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("orders/$passedUserId")
                                 },
                                 navigateToLogin = {
-                                    // 1. مسح بيانات تسجيل الدخول من SharedPreferences
-                                    sharedPref.edit().apply {
-                                        putBoolean("is_logged_in", false)
-                                        putString("user_id", "")
-                                        apply()
-                                    }
+                                    // 1. مسح جميع بيانات تسجيل الدخول من SharedPreferences بشكل كامل ومضمون
+                                    sharedPref.edit().clear().apply()
                                     
-                                    // 2. التوجيه لشاشة تسجيل الدخول ومسح مكدس الشاشات (Back Stack) بالكامل
+                                    // 2. التوجيه لشاشة تسجيل الدخول ومسح مكدس الشاشات بالطريقة المتوافقة مع أندرويد
                                     navController.navigate("login") {
-                                        popUpTo(0) { inclusive = true } // لمنع العودة للشاشة الرئيسية بزر الرجوع
+                                        popUpTo(navController.graph.id) { 
+                                            inclusive = true 
+                                        }
+                                        launchSingleTop = true
                                     }
                                 }
                             )
