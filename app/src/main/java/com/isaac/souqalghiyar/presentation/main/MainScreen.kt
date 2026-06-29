@@ -24,17 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ListAlt
-import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -69,7 +59,6 @@ val TextWhite = Color(0xFFFFFFFF)
 val TextGray = Color(0xFFAAAAAA)
 val SuccessGreen = Color(0xFF388E3C)
 
-// دالة فحص الإنترنت أضفناها هنا أيضاً
 fun isInternetAvailable(context: Context): Boolean {
     val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
@@ -91,6 +80,7 @@ fun MainScreen(
     viewModel: MainViewModel = hiltViewModel(),
     navigateToRequestParts: (String, String, String, String, String) -> Unit,
     navigateToOrders: (String) -> Unit,
+    navigateToNotifications: (String) -> Unit,
     navigateToLogin: () -> Unit
 ) {
     val currentUser by viewModel.currentUser.collectAsState()
@@ -100,6 +90,7 @@ fun MainScreen(
     val isSearchingVin by viewModel.isSearchingVin.collectAsState()
     val isLoadingData by viewModel.isLoadingData.collectAsState()
     val hasPendingOrders by viewModel.hasPendingOrders.collectAsState()
+    val hasUnreadNotifications by viewModel.hasUnreadNotifications.collectAsState()
 
     val context = LocalContext.current
 
@@ -139,26 +130,9 @@ fun MainScreen(
     if (currentUser != null && currentUser!!.number_of_rejections >= 2.0) {
         AlertDialog(
             onDismissRequest = { },
-            properties = DialogProperties(
-                dismissOnBackPress = false,
-                dismissOnClickOutside = false
-            ),
-            title = {
-                Text(
-                    text = "تنبيه إيقاف الحساب",
-                    color = PrimaryRed,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 20.sp
-                )
-            },
-            text = {
-                Text(
-                    text = "تم ايقاف حسابك بسبب تكرار رفض الفواتير اكثر من مرتين . لتفعيل حسابك يجب فرض رسوم مبلغ وقدره ٢٠٠٠ ريال يمني .\n\nطريقه تسديد الرسوم :\nحواله الى محفظه بجيب الى حساب مشترك رقم 558933 \nوارسال الاشعار وتساب الى الرقم 777979719",
-                    color = TextWhite,
-                    fontSize = 16.sp,
-                    lineHeight = 26.sp
-                )
-            },
+            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+            title = { Text("تنبيه إيقاف الحساب", color = PrimaryRed, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp) },
+            text = { Text("تم ايقاف حسابك بسبب تكرار رفض الفواتير اكثر من مرتين . لتفعيل حسابك يجب فرض رسوم مبلغ وقدره ٢٠٠٠ ريال يمني .\n\nطريقه تسديد الرسوم :\nحواله الى محفظه بجيب الى حساب مشترك رقم 558933 \nوارسال الاشعار وتساب الى الرقم 777979719", color = TextWhite, fontSize = 16.sp, lineHeight = 26.sp) },
             confirmButton = {},
             containerColor = SurfaceDark,
             shape = RoundedCornerShape(16.dp)
@@ -169,50 +143,60 @@ fun MainScreen(
         Scaffold(
             topBar = {
                 CenterAlignedTopAppBar(
-                    title = {
-                        Text("سوق الغيار", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
-                    },
+                    title = { Text("سوق الغيار", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp) },
                     navigationIcon = {
-                        IconButton(onClick = { showAboutDialog = true }) {
-                            Icon(Icons.Default.Info, contentDescription = "حول النظام", tint = TextWhite, modifier = Modifier.size(26.dp))
+                        IconButton(onClick = { navigateToNotifications(userId) }) {
+                            BadgedBox(
+                                badge = { 
+                                    if (hasUnreadNotifications) Badge(containerColor = PrimaryRed, modifier = Modifier.offset(x = (-4).dp, y = 4.dp)) { Text("!") } 
+                                }
+                            ) {
+                                Icon(Icons.Default.Notifications, contentDescription = "الإشعارات", tint = TextWhite, modifier = Modifier.size(26.dp))
+                            }
                         }
                     },
                     actions = {
                         IconButton(onClick = navigateToLogin) {
                             Icon(Icons.Default.ExitToApp, contentDescription = "تسجيل خروج", tint = PrimaryRed, modifier = Modifier.size(26.dp))
                         }
-                        IconButton(onClick = {
-                            // التعديل 1: فحص الإنترنت قبل الانتقال للطلبات
-                            if (isInternetAvailable(context)) {
-                                navigateToOrders(userId)
-                            } else {
-                                Toast.makeText(context, "لا يوجد اتصال بالإنترنت", Toast.LENGTH_SHORT).show()
-                            }
-                        }) {
-                            BadgedBox(
-                                badge = {
-                                    if (hasPendingOrders) {
-                                        Badge(
-                                            containerColor = PrimaryRed,
-                                            contentColor = TextWhite,
-                                            modifier = Modifier.offset(x = (-4).dp, y = 4.dp)
-                                        ) {
-                                            Text("!", fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            ) {
-                                Icon(Icons.Default.ListAlt, contentDescription = "طلباتي", tint = TextWhite, modifier = Modifier.size(26.dp))
-                            }
-                        }
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                         containerColor = Color.Black,
-                        titleContentColor = PrimaryRed,
-                        actionIconContentColor = TextWhite
+                        titleContentColor = PrimaryRed
                     ),
                     modifier = Modifier.shadow(8.dp)
                 )
+            },
+            bottomBar = {
+                NavigationBar(containerColor = SurfaceDark) {
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = { 
+                            if (isInternetAvailable(context)) navigateToOrders(userId)
+                            else Toast.makeText(context, "لا يوجد اتصال بالإنترنت", Toast.LENGTH_SHORT).show()
+                        },
+                        icon = { 
+                            BadgedBox(badge = { if (hasPendingOrders) Badge(containerColor = PrimaryRed) }) {
+                                Icon(Icons.Default.ListAlt, contentDescription = "طلباتي")
+                            }
+                        },
+                        label = { Text("طلباتي") },
+                        colors = NavigationBarItemDefaults.colors(
+                            unselectedIconColor = TextWhite, unselectedTextColor = TextWhite,
+                            selectedIconColor = PrimaryRed, selectedTextColor = PrimaryRed
+                        )
+                    )
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = { showAboutDialog = true },
+                        icon = { Icon(Icons.Default.Info, contentDescription = "حول النظام") },
+                        label = { Text("حول النظام") },
+                        colors = NavigationBarItemDefaults.colors(
+                            unselectedIconColor = TextWhite, unselectedTextColor = TextWhite,
+                            selectedIconColor = PrimaryRed, selectedTextColor = PrimaryRed
+                        )
+                    )
+                }
             },
             containerColor = DarkBackground
         ) { innerPadding ->
@@ -236,22 +220,9 @@ fun MainScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     if (currentUser != null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "أهلاً بكم، ",
-                                color = TextGray,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = currentUser!!.display_name,
-                                color = PrimaryRed,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("أهلاً بكم، ", color = TextGray, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                            Text(currentUser!!.display_name, color = PrimaryRed, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                     }
@@ -270,20 +241,14 @@ fun MainScreen(
                         vin = vinNumber, onVinChange = { vinNumber = it },
                         isSearchingVin = isSearchingVin,
                         onSearchVin = { searchVin ->
-                            // التعديل 2: فحص الإنترنت قبل البحث برقم الشاصي
                             if (isInternetAvailable(context)) {
                                 viewModel.searchByVin(
                                     vin = searchVin,
                                     onSuccess = { fetchedBrand, fetchedModel, fetchedYear, fetchedMadeIn ->
-                                        brandName = fetchedBrand
-                                        vehicleModel = fetchedModel
-                                        vehicleYear = fetchedYear
-                                        manufacture = fetchedMadeIn
+                                        brandName = fetchedBrand; vehicleModel = fetchedModel; vehicleYear = fetchedYear; manufacture = fetchedMadeIn
                                         Toast.makeText(context, "تم العثور على بيانات المركبة", Toast.LENGTH_SHORT).show()
                                     },
-                                    onError = { errorMsg ->
-                                        Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
-                                    }
+                                    onError = { errorMsg -> Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show() }
                                 )
                             } else {
                                 Toast.makeText(context, "لا يوجد اتصال بالإنترنت للبحث", Toast.LENGTH_SHORT).show()
@@ -301,10 +266,7 @@ fun MainScreen(
                     PhotoPickerBox(
                         isUploaded = selectedBitmap != null,
                         onClick = { imagePickerLauncher.launch("image/*") },
-                        onClear = {
-                            selectedBitmap = null
-                            selectedImageUri = null
-                        }
+                        onClear = { selectedBitmap = null; selectedImageUri = null }
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -313,22 +275,15 @@ fun MainScreen(
                         isImageUploaded = selectedBitmap != null,
                         isAnalyzing = isAnalyzing,
                         onClick = {
-                            // التعديل 3: فحص الإنترنت قبل استخراج البيانات من الصورة
                             if (isInternetAvailable(context)) {
                                 selectedBitmap?.let { bitmap ->
                                     viewModel.analyzeVinImageFromBitmap(
                                         bitmap = bitmap,
                                         onSuccess = { brand, model, year, madeIn, vin ->
-                                            brandName = brand
-                                            vehicleModel = model
-                                            vehicleYear = year
-                                            manufacture = madeIn
-                                            vinNumber = vin
+                                            brandName = brand; vehicleModel = model; vehicleYear = year; manufacture = madeIn; vinNumber = vin
                                             Toast.makeText(context, "تم استخراج البيانات بنجاح", Toast.LENGTH_LONG).show()
                                         },
-                                        onError = { errorMsg ->
-                                            Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
-                                        }
+                                        onError = { errorMsg -> Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show() }
                                     )
                                 }
                             } else {
@@ -341,24 +296,16 @@ fun MainScreen(
 
                     Button(
                         onClick = {
-                            // التعديل 4: فحص الإنترنت قبل الانتقال لواجهة طلب القطع
                             if (isInternetAvailable(context)) {
                                 navigateToRequestParts(brandName, vehicleModel, vehicleYear, manufacture, vinNumber.ifEmpty { "غير محدد" })
                             } else {
                                 Toast.makeText(context, "الرجاء الاتصال بالإنترنت لإرسال الطلب", Toast.LENGTH_SHORT).show()
                             }
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(60.dp)
-                            .padding(bottom = 8.dp)
-                            .shadow(if (isRequiredFieldsFilled) 8.dp else 0.dp, RoundedCornerShape(16.dp)),
+                        modifier = Modifier.fillMaxWidth().height(60.dp).padding(bottom = 8.dp).shadow(if (isRequiredFieldsFilled) 8.dp else 0.dp, RoundedCornerShape(16.dp)),
                         shape = RoundedCornerShape(16.dp),
                         enabled = isRequiredFieldsFilled,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = PrimaryRed,
-                            disabledContainerColor = SurfaceDark
-                        )
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryRed, disabledContainerColor = SurfaceDark)
                     ) {
                         Text("طلب قطع غيار", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = if (isRequiredFieldsFilled) TextWhite else TextGray)
                     }
@@ -410,7 +357,6 @@ fun CarDetailsFields(
                     brandsList.forEach { opt -> DropdownMenuItem(text = { Text(opt, color = TextWhite) }, onClick = { onBrandChange(opt); expandedBrand = false }) }
                 }
             }
-
             OutlinedTextField(value = model, onValueChange = onModelChange, label = { Text("نوع الموديل *") }, placeholder = { Text("مثل: كورولا", color = TextGray.copy(alpha = 0.5f)) }, modifier = Modifier.weight(1f), singleLine = true, colors = defaultTextFieldColors, keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next), shape = RoundedCornerShape(12.dp))
         }
 
@@ -421,7 +367,6 @@ fun CarDetailsFields(
                     yearsList.forEach { opt -> DropdownMenuItem(text = { Text(opt, color = TextWhite) }, onClick = { onYearChange(opt); expandedYear = false }) }
                 }
             }
-
             ExposedDropdownMenuBox(expanded = expandedMadeIn, onExpandedChange = { expandedMadeIn = !expandedMadeIn }, modifier = Modifier.weight(1f)) {
                 OutlinedTextField(value = madeIn, onValueChange = onMadeInChange, label = { Text("مكان التصنيع *") }, modifier = Modifier.menuAnchor().fillMaxWidth(), colors = defaultTextFieldColors, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMadeIn) }, shape = RoundedCornerShape(12.dp))
                 ExposedDropdownMenu(expanded = expandedMadeIn, onDismissRequest = { expandedMadeIn = false }, modifier = Modifier.background(SurfaceDark)) {
@@ -458,41 +403,16 @@ fun PhotoPickerBox(isUploaded: Boolean, onClick: () -> Unit, onClear: () -> Unit
     val borderColor = if (isUploaded) SuccessGreen else TextWhite
     val bgColor = if (isUploaded) SuccessGreen.copy(alpha = 0.1f) else SurfaceDark.copy(alpha = 0.5f)
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(110.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(bgColor)
-            .border(1.5.dp, borderColor, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick, enabled = !isUploaded),
+        modifier = Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(16.dp)).background(bgColor).border(1.5.dp, borderColor, RoundedCornerShape(16.dp)).clickable(onClick = onClick, enabled = !isUploaded),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
-            Icon(
-                imageVector = if (isUploaded) Icons.Default.CheckCircle else Icons.Default.PhotoCamera,
-                contentDescription = "الكاميرا",
-                tint = if (isUploaded) SuccessGreen else TextWhite,
-                modifier = Modifier.size(36.dp)
-            )
+            Icon(imageVector = if (isUploaded) Icons.Default.CheckCircle else Icons.Default.PhotoCamera, contentDescription = "الكاميرا", tint = if (isUploaded) SuccessGreen else TextWhite, modifier = Modifier.size(36.dp))
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = if (isUploaded) "تم اختيار الصورة بنجاح" else "انقر لاختيار صورة ملصق الشاصي",
-                color = if (isUploaded) SuccessGreen else TextWhite,
-                fontWeight = if (isUploaded) FontWeight.Bold else FontWeight.Normal,
-                fontSize = 15.sp,
-                textAlign = TextAlign.Center
-            )
+            Text(text = if (isUploaded) "تم اختيار الصورة بنجاح" else "انقر لاختيار صورة ملصق الشاصي", color = if (isUploaded) SuccessGreen else TextWhite, fontWeight = if (isUploaded) FontWeight.Bold else FontWeight.Normal, fontSize = 15.sp, textAlign = TextAlign.Center)
         }
-
         if (isUploaded) {
-            IconButton(
-                onClick = onClear,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(8.dp)
-                    .background(SurfaceDark.copy(alpha = 0.8f), CircleShape)
-                    .size(32.dp)
-            ) {
+            IconButton(onClick = onClear, modifier = Modifier.align(Alignment.TopStart).padding(8.dp).background(SurfaceDark.copy(alpha = 0.8f), CircleShape).size(32.dp)) {
                 Icon(Icons.Default.Delete, contentDescription = "حذف الصورة", tint = PrimaryRed, modifier = Modifier.size(20.dp))
             }
         }
@@ -504,11 +424,8 @@ fun AnalyzeButton(isImageUploaded: Boolean, isAnalyzing: Boolean, onClick: () ->
     val context = LocalContext.current
     Button(
         onClick = {
-            if (!isImageUploaded) {
-                Toast.makeText(context, "يرجى اختيار صورة ملصق الشاصي أولاً", Toast.LENGTH_SHORT).show()
-            } else {
-                onClick()
-            }
+            if (!isImageUploaded) Toast.makeText(context, "يرجى اختيار صورة ملصق الشاصي أولاً", Toast.LENGTH_SHORT).show()
+            else onClick()
         },
         modifier = Modifier.fillMaxWidth().height(55.dp),
         shape = RoundedCornerShape(14.dp),
@@ -516,10 +433,7 @@ fun AnalyzeButton(isImageUploaded: Boolean, isAnalyzing: Boolean, onClick: () ->
         contentPadding = PaddingValues()
     ) {
         Box(
-            modifier = Modifier.fillMaxSize().background(
-                Brush.horizontalGradient(colors = listOf(PrimaryRed, Color(0xFF8E0000))),
-                shape = RoundedCornerShape(14.dp)
-            ),
+            modifier = Modifier.fillMaxSize().background(Brush.horizontalGradient(colors = listOf(PrimaryRed, Color(0xFF8E0000))), shape = RoundedCornerShape(14.dp)),
             contentAlignment = Alignment.Center
         ) {
             if (isAnalyzing) {
@@ -539,11 +453,7 @@ fun AnalyzeButton(isImageUploaded: Boolean, isAnalyzing: Boolean, onClick: () ->
 @Composable
 fun AnimatedAdsCard(ads: List<Advertisement>) {
     if (ads.isEmpty()) {
-        Card(
-            modifier = Modifier.fillMaxWidth().height(140.dp),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = SurfaceDark)
-        ) {
+        Card(modifier = Modifier.fillMaxWidth().height(140.dp), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = SurfaceDark)) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = PrimaryRed, modifier = Modifier.size(28.dp))
             }
@@ -563,17 +473,11 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
         }
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth().height(140.dp).border(1.dp, SurfaceDark, RoundedCornerShape(20.dp)),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Black)
-    ) {
+    Card(modifier = Modifier.fillMaxWidth().height(140.dp).border(1.dp, SurfaceDark, RoundedCornerShape(20.dp)), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.Black)) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             Box(modifier = Modifier.fillMaxSize()) {
                 AsyncImage(model = ads[page].image_url, contentDescription = "الإعلان", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                Box(modifier = Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)))
-                ))
+                Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)))))
                 Column(modifier = Modifier.fillMaxSize().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
                     Text(text = ads[page].title, textAlign = TextAlign.Center, color = TextWhite, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, lineHeight = 26.sp)
                     Spacer(modifier = Modifier.height(4.dp))
@@ -588,101 +492,45 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
 fun AboutSystemDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("إغلاق", color = PrimaryRed, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            }
-        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق", color = PrimaryRed, fontWeight = FontWeight.Bold, fontSize = 16.sp) } },
         containerColor = SurfaceDark,
         shape = RoundedCornerShape(20.dp),
         text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .size(90.dp)
-                        .shadow(10.dp, CircleShape, spotColor = PrimaryRed),
-                    shape = CircleShape,
-                    color = DarkBackground
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.logo3),
-                        contentDescription = "الشعار",
-                        modifier = Modifier.padding(12.dp)
-                    )
+            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+                Surface(modifier = Modifier.size(90.dp).shadow(10.dp, CircleShape, spotColor = PrimaryRed), shape = CircleShape, color = DarkBackground) {
+                    Image(painter = painterResource(id = R.drawable.logo3), contentDescription = "الشعار", modifier = Modifier.padding(12.dp))
                 }
-
                 Spacer(modifier = Modifier.height(20.dp))
-
-                Text(
-                    text = "خدمة العملاء",
-                    fontWeight = FontWeight.Bold,
-                    color = PrimaryRed,
-                    fontSize = 16.sp
-                )
-
+                Text(text = "خدمة العملاء", fontWeight = FontWeight.Bold, color = PrimaryRed, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                     Icon(Icons.Default.Call, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("+967-777979719", color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("+967-736373788", color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                     Icon(Icons.Default.Email, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("ishaq.amjid@gmail.com", color = TextWhite, fontSize = 14.sp)
                 }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                     Icon(Icons.Default.LocationOn, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("اليمن - صنعاء", color = TextWhite, fontSize = 15.sp)
                 }
-
                 Spacer(modifier = Modifier.height(20.dp))
                 HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
                 Spacer(modifier = Modifier.height(15.dp))
-
-                Text(
-                    text = "حول النظام",
-                    fontWeight = FontWeight.ExtraBold,
-                    color = PrimaryRed,
-                    fontSize = 18.sp,
-                    textAlign = TextAlign.Center
-                )
-
+                Text(text = "حول النظام", fontWeight = FontWeight.ExtraBold, color = PrimaryRed, fontSize = 18.sp, textAlign = TextAlign.Center)
                 Spacer(modifier = Modifier.height(8.dp))
-
                 Text(
                     text = "سوق الغيار خدمه تابعه لشركه الحبيب للتجاره العامه  وهو تطبيق لشراء قطع غيار لجميع انواع المركباتفي اليمن وتوصيلها اليك . حيث يمكنك اضافه القطع التي تود شرائها بكل مواصفاتها ثم يتم ارسال فاتوره عرض سعر للموافقه عليها ثم يتم توصيلها اليك  تدعم الخدمه تسديد الفاتوره عند الاستلام لكسب ثقه العميل وايضا فحص القطعه قبل الاستلام والتأكد من مطابقه مواصفات الطلب .",
-                    color = TextGray,
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 22.sp
+                    color = TextGray, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 22.sp
                 )
             }
         }
