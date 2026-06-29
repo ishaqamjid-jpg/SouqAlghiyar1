@@ -42,6 +42,19 @@ class OrderRepositoryImpl @Inject constructor(
                     val finalItem = item.copy(item_id = itemRef.id)
                     transaction.set(itemRef, finalItem)
                 }
+
+                // إضافة إشعار للإدارة في جدول admin_alarm
+                val adminAlarmRef = db.collection("admin_alarm").document()
+                val adminAlarmData = com.isaac.souqalghiyar.domain.model.admin_alarm(
+                    alarm_id = adminAlarmRef.id,
+                    date = com.google.firebase.Timestamp.now(),
+                    order_number = newOrderNumber,
+                    title = "طلب تسعيرة جديد",
+                    message = "قام العميل بطلب فاتورة عرض سعر جديدة برقم $newOrderNumber",
+                    isRead = false
+                )
+                transaction.set(adminAlarmRef, adminAlarmData)
+
                 true
             }.await()
             Result.success(Unit)
@@ -93,26 +106,15 @@ class OrderRepositoryImpl @Inject constructor(
         awaitClose { sub.remove() }
     }
 
-
-
-
-override suspend fun incrementUserRejections(userId: String): Result<Unit> {
-    return try {
-        // نستخدم FieldValue.increment لزيادة الرقم مباشرة من سيرفر Firebase بأمان
-        db.collection("users").document(userId)
-            .update("number_of_rejections", FieldValue.increment(1.0)).await()
-        Result.success(Unit)
-    } catch (e: Exception) {
-        Result.failure(e)
+    override suspend fun incrementUserRejections(userId: String): Result<Unit> {
+        return try {
+            db.collection("users").document(userId)
+                .update("number_of_rejections", FieldValue.increment(1.0)).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
-}
-
-
-
-
-
-
-
 
     override fun getUserOrders(userId: String): Flow<List<OrderWithItems>> = callbackFlow {
         val subscription = db.collection("orders")
@@ -128,7 +130,6 @@ override suspend fun incrementUserRejections(userId: String): Result<Unit> {
                     return@addSnapshotListener
                 }
 
-                // استخدمنا launch المدمج مع callbackFlow لضمان دورة الحياة الصحيحة للمسار
                 launch {
                     try {
                         val orderList = mutableListOf<OrderWithItems>()
@@ -136,7 +137,6 @@ override suspend fun incrementUserRejections(userId: String): Result<Unit> {
                         for (doc in snapshot.documents) {
                             val order = doc.toObject(Order::class.java)?.copy(order_id = doc.id)
                             if (order != null) {
-                                // جلب القطع الفرعية بأمان
                                 val itemsSnapshot = db.collection("orders").document(order.order_id).collection("items").get().await()
                                 val items = itemsSnapshot.documents.mapNotNull { itemDoc ->
                                     itemDoc.toObject(OrderItem::class.java)?.copy(item_id = itemDoc.id)
@@ -145,12 +145,10 @@ override suspend fun incrementUserRejections(userId: String): Result<Unit> {
                             }
                         }
 
-                        // إرسال البيانات المجمعة مرتبة من الأحدث للأقدم
                         send(orderList.sortedByDescending { it.order.created_at })
                         
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        // التعديل الأهم: إرسال قائمة فارغة في حال حدوث أي خطأ لمنع واجهة الطلبات من التعليق في وضع التحميل
                         send(emptyList())
                     }
                 }
@@ -158,7 +156,6 @@ override suspend fun incrementUserRejections(userId: String): Result<Unit> {
         awaitClose { subscription.remove() }
     }
 
-    // التعديل هنا لرفع حالة الطلب مع ملاحظات الموافقة والرفض
     override suspend fun updateOrderStatus(
         orderId: String, 
         newStatus: String,
