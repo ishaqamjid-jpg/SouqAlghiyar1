@@ -99,19 +99,23 @@ class MainActivity : ComponentActivity() {
                             MainScreen(
                                 userId = userId,
                                 navigateToRequestParts = { brandName, vehicleName, vehicleModel, manufacture, vinNumber ->
-                                    val safeVin = if (vinNumber.isBlank()) "غير_محدد" else vinNumber.replace("/", "-")
-                                    val safeBrand = brandName.replace("/", "-")
-                                    val safeName = vehicleName.replace("/", "-")
-                                    val safeModel = vehicleModel.replace("/", "-")
-                                    val safeManuf = manufacture.replace("/", "-")
+                                    // حماية قوية: إذا كان الحقل فارغاً نضع "غير_محدد" لتجنب انهيار مسار التنقل //
+                                    val safeVin = vinNumber.ifBlank { "غير_محدد" }.replace("/", "-")
+                                    val safeBrand = brandName.ifBlank { "غير_محدد" }.replace("/", "-")
+                                    val safeName = vehicleName.ifBlank { "غير_محدد" }.replace("/", "-")
+                                    val safeModel = vehicleModel.ifBlank { "غير_محدد" }.replace("/", "-")
+                                    val safeManuf = manufacture.ifBlank { "غير_محدد" }.replace("/", "-")
+                                    val safeUserId = userId.ifBlank { "unknown_user" }
 
-                                    navController.navigate("request_parts/$userId/$safeBrand/$safeName/$safeModel/$safeManuf/$safeVin")
+                                    navController.navigate("request_parts/$safeUserId/$safeBrand/$safeName/$safeModel/$safeManuf/$safeVin")
                                 },
                                 navigateToOrders = { passedUserId ->
-                                    navController.navigate("orders/$passedUserId")
+                                    val safeId = passedUserId.ifBlank { "unknown_user" }
+                                    navController.navigate("orders/$safeId")
                                 },
                                 navigateToNotifications = { passedUserId ->
-                                    navController.navigate("notifications/$passedUserId")
+                                    val safeId = passedUserId.ifBlank { "unknown_user" }
+                                    navController.navigate("notifications/$safeId")
                                 },
                                 navigateToLogin = {
                                     // مسح التوكن كإجراء أمني عند تسجيل الخروج
@@ -130,11 +134,12 @@ class MainActivity : ComponentActivity() {
                         }
 
                         composable("request_parts/{userId}/{brandName}/{vehicleName}/{vehicleModel}/{manufacture}/{vinNumber}") { backStackEntry ->
-                            val userId = backStackEntry.arguments?.getString("userId") ?: ""
-                            val brandName = backStackEntry.arguments?.getString("brandName")?.replace("-", "/") ?: ""
-                            val vehicleName = backStackEntry.arguments?.getString("vehicleName")?.replace("-", "/") ?: ""
-                            val vehicleModel = backStackEntry.arguments?.getString("vehicleModel")?.replace("-", "/") ?: ""
-                            val manufacture = backStackEntry.arguments?.getString("manufacture")?.replace("-", "/") ?: ""
+                            // استرجاع البيانات وإزالة كلمة "غير_محدد" لتعود كحقول فارغة في الواجهة إذا لزم الأمر
+                            val userId = backStackEntry.arguments?.getString("userId")?.replace("unknown_user", "") ?: ""
+                            val brandName = backStackEntry.arguments?.getString("brandName")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
+                            val vehicleName = backStackEntry.arguments?.getString("vehicleName")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
+                            val vehicleModel = backStackEntry.arguments?.getString("vehicleModel")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
+                            val manufacture = backStackEntry.arguments?.getString("manufacture")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
                             val vinNumber = backStackEntry.arguments?.getString("vinNumber")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
 
                             RequestPartsScreen(
@@ -149,7 +154,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         composable("orders/{userId}") { backStackEntry ->
-                            val routeUserId = backStackEntry.arguments?.getString("userId") ?: ""
+                            val routeUserId = backStackEntry.arguments?.getString("userId")?.replace("unknown_user", "") ?: ""
                             val finalUserId = routeUserId.ifEmpty { sharedPref.getString("user_id", "") ?: "" }
 
                             OrdersScreen(
@@ -159,7 +164,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         composable("notifications/{userId}") { backStackEntry ->
-                            val routeUserId = backStackEntry.arguments?.getString("userId") ?: ""
+                            val routeUserId = backStackEntry.arguments?.getString("userId")?.replace("unknown_user", "") ?: ""
                             val finalUserId = routeUserId.ifEmpty { sharedPref.getString("user_id", "") ?: "" }
 
                             NotificationsScreen(
