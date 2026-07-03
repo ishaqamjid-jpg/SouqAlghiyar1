@@ -18,6 +18,7 @@ data class admin_alarm(
     val date: Timestamp? = null,
     val order_number: Long = 0L,
     val message: String = "",
+    val fcm_token: String = "",
     val title: String = "",
     val isRead: Boolean = false
 )

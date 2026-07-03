@@ -1,10 +1,12 @@
 package com.isaac.souqalghiyar.data.repository
 
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.isaac.souqalghiyar.domain.model.Order
 import com.isaac.souqalghiyar.domain.model.OrderItem
 import com.isaac.souqalghiyar.domain.model.OrderWithItems
+import com.isaac.souqalghiyar.domain.model.admin_alarm
 import com.isaac.souqalghiyar.domain.repository.OrderRepository
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -12,7 +14,6 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
-import com.google.firebase.firestore.FieldValue
 
 class OrderRepositoryImpl @Inject constructor(
     private val db: FirebaseFirestore
@@ -20,6 +21,18 @@ class OrderRepositoryImpl @Inject constructor(
 
     override suspend fun submitOrderWithItems(order: Order, items: List<OrderItem>): Result<Unit> {
         return try {
+            // 1. جلب توكنات جميع المدراء والموظفين النشطين أولاً
+            val adminsSnapshot = db.collection("users_emp")
+                .whereEqualTo("status", "active")
+                .get()
+                .await()
+
+            // تصفية التوكنات غير الفارغة ودمجها بفاصلة (مثال: token1,token2)
+            val adminTokens = adminsSnapshot.documents
+                .mapNotNull { it.getString("fcm_token") }
+                .filter { it.isNotEmpty() }
+                .joinToString(",")
+
             val counterRef = db.collection("counters").document("orders")
             val orderRef = db.collection("orders").document()
 
@@ -43,14 +56,15 @@ class OrderRepositoryImpl @Inject constructor(
                     transaction.set(itemRef, finalItem)
                 }
 
-                // إضافة إشعار للإدارة في جدول admin_alarm
+                // 2. إنشاء إشعار للإدارة وتمرير التوكنات المجمعة
                 val adminAlarmRef = db.collection("admin_alarm").document()
-                val adminAlarmData = com.isaac.souqalghiyar.domain.model.admin_alarm(
+                val adminAlarmData = admin_alarm(
                     alarm_id = adminAlarmRef.id,
                     date = com.google.firebase.Timestamp.now(),
                     order_number = newOrderNumber,
                     title = "طلب تسعيرة جديد",
                     message = "قام العميل بطلب فاتورة عرض سعر جديدة برقم $newOrderNumber",
+                    fcm_token = adminTokens, // <-- التوكنات أصبحت جاهزة هنا
                     isRead = false
                 )
                 transaction.set(adminAlarmRef, adminAlarmData)
@@ -146,7 +160,7 @@ class OrderRepositoryImpl @Inject constructor(
                         }
 
                         send(orderList.sortedByDescending { it.order.created_at })
-                        
+
                     } catch (e: Exception) {
                         e.printStackTrace()
                         send(emptyList())
@@ -157,7 +171,7 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateOrderStatus(
-        orderId: String, 
+        orderId: String,
         newStatus: String,
         approvalNotes: String,
         disapprovalNotes: String
