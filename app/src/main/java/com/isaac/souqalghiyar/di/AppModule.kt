@@ -6,13 +6,15 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.isaac.souqalghiyar.data.repository.AuthRepositoryImpl
 import com.isaac.souqalghiyar.data.repository.MainRepositoryImpl
 import com.isaac.souqalghiyar.data.repository.OrderRepositoryImpl
-// 👇 الاستيرادات الجديدة التي أضفناها
 import com.isaac.souqalghiyar.data.repository.UserRepositoryImpl
+// 👇 استيراد ملفات مستودع الإشعارات الجديدة
+import com.isaac.souqalghiyar.data.repository.NotificationRepositoryImpl
 import com.isaac.souqalghiyar.domain.repository.AuthRepository
 import com.isaac.souqalghiyar.domain.repository.MainRepository
 import com.isaac.souqalghiyar.domain.repository.OrderRepository
-// 👇 الاستيرادات الجديدة التي أضفناها
 import com.isaac.souqalghiyar.domain.repository.UserRepository
+// 👇 استيراد واجهة الإشعارات الجديدة
+import com.isaac.souqalghiyar.domain.repository.NotificationRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -54,10 +56,16 @@ object AppModule {
         return OrderRepositoryImpl(firestore)
     }
 
-    // 👇 الدالة الجديدة التي ستحل مشكلة MissingBinding
     @Provides
     @Singleton
     fun provideUserRepository(firestore: FirebaseFirestore): UserRepository {
         return UserRepositoryImpl(firestore)
+    }
+
+    // 👇 الدالة الجديدة التي ستحل مشكلة MissingBinding لـ NotificationRepository
+    @Provides
+    @Singleton
+    fun provideNotificationRepository(firestore: FirebaseFirestore): NotificationRepository {
+        return NotificationRepositoryImpl(firestore)
     }
 }

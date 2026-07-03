@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,7 +32,9 @@ class MainActivity : ComponentActivity() {
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean -> }
+    ) { isGranted: Boolean ->
+        if (!isGranted) Log.e("FCM", "Notification Permission Denied")
+    }
 
     private fun askNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -43,7 +46,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         askNotificationPermission()
 
         val sharedPref = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
@@ -55,7 +58,7 @@ class MainActivity : ComponentActivity() {
             if (task.isSuccessful) {
                 val token = task.result
                 sharedPref.edit().putString("fcm_token", token).apply()
-                // إذا كان مسجلاً، نحدث التوكن في الفايربيز
+                // إذا كان العميل مسجلاً دخوله، نحدث التوكن في قاعدة البيانات لكي يستطيع الآدمن إرسال إشعار له
                 if (isLoggedIn && savedUserId.isNotEmpty()) {
                     FirebaseFirestore.getInstance().collection("users").document(savedUserId)
                         .update("fcm_token", token)
@@ -73,11 +76,17 @@ class MainActivity : ComponentActivity() {
                     val startDestination = if (isLoggedIn && savedUserId.isNotEmpty()) "main/$savedUserId" else "login"
 
                     NavHost(navController = navController, startDestination = startDestination) {
-                        
+
                         composable("login") {
                             LoginScreen(
                                 navigateToMain = { userId ->
-                                    // هنا يمكنك أيضاً التأكد من تحديث التوكن عند الدخول لأول مرة
+                                    // جلب التوكن وتحديثه فور تسجيل الدخول لأول مرة
+                                    val token = sharedPref.getString("fcm_token", "") ?: ""
+                                    if (token.isNotEmpty()) {
+                                        FirebaseFirestore.getInstance().collection("users").document(userId)
+                                            .update("fcm_token", token)
+                                    }
+
                                     navController.navigate("main/$userId") {
                                         popUpTo("login") { inclusive = true }
                                     }
@@ -95,6 +104,7 @@ class MainActivity : ComponentActivity() {
                                     val safeName = vehicleName.replace("/", "-")
                                     val safeModel = vehicleModel.replace("/", "-")
                                     val safeManuf = manufacture.replace("/", "-")
+
                                     navController.navigate("request_parts/$userId/$safeBrand/$safeName/$safeModel/$safeManuf/$safeVin")
                                 },
                                 navigateToOrders = { passedUserId ->
@@ -104,6 +114,12 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("notifications/$passedUserId")
                                 },
                                 navigateToLogin = {
+                                    // مسح التوكن كإجراء أمني عند تسجيل الخروج
+                                    if (userId.isNotEmpty()) {
+                                        FirebaseFirestore.getInstance().collection("users").document(userId)
+                                            .update("fcm_token", "")
+                                    }
+
                                     sharedPref.edit().clear().apply()
                                     navController.navigate("login") {
                                         popUpTo(navController.graph.id) { inclusive = true }
@@ -112,11 +128,44 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-                        // (باقي الشاشات كما هي، بالإضافة إلى شاشة الإشعارات)
+
+                        composable("request_parts/{userId}/{brandName}/{vehicleName}/{vehicleModel}/{manufacture}/{vinNumber}") { backStackEntry ->
+                            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+                            val brandName = backStackEntry.arguments?.getString("brandName")?.replace("-", "/") ?: ""
+                            val vehicleName = backStackEntry.arguments?.getString("vehicleName")?.replace("-", "/") ?: ""
+                            val vehicleModel = backStackEntry.arguments?.getString("vehicleModel")?.replace("-", "/") ?: ""
+                            val manufacture = backStackEntry.arguments?.getString("manufacture")?.replace("-", "/") ?: ""
+                            val vinNumber = backStackEntry.arguments?.getString("vinNumber")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
+
+                            RequestPartsScreen(
+                                userId = userId,
+                                brandName = brandName,
+                                vehicleName = vehicleName,
+                                vehicleModel = vehicleModel,
+                                manufacture = manufacture,
+                                vinNumber = vinNumber,
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable("orders/{userId}") { backStackEntry ->
+                            val routeUserId = backStackEntry.arguments?.getString("userId") ?: ""
+                            val finalUserId = routeUserId.ifEmpty { sharedPref.getString("user_id", "") ?: "" }
+
+                            OrdersScreen(
+                                userId = finalUserId,
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+
                         composable("notifications/{userId}") { backStackEntry ->
                             val routeUserId = backStackEntry.arguments?.getString("userId") ?: ""
                             val finalUserId = routeUserId.ifEmpty { sharedPref.getString("user_id", "") ?: "" }
-                            NotificationsScreen(userId = finalUserId, onNavigateBack = { navController.popBackStack() })
+
+                            NotificationsScreen(
+                                userId = finalUserId,
+                                onNavigateBack = { navController.popBackStack() }
+                            )
                         }
                     }
                 }
