@@ -21,17 +21,16 @@ class OrderRepositoryImpl @Inject constructor(
 
     override suspend fun submitOrderWithItems(order: Order, items: List<OrderItem>): Result<Unit> {
         return try {
-            // 1. جلب توكنات جميع المدراء والموظفين النشطين أولاً
-            val adminsSnapshot = db.collection("users_emp")
+            // 1. جلب توكنات جميع المدراء والموظفين النشطين كقائمة
+            val adminsSnapshot = db.collection("UserEmp")
                 .whereEqualTo("status", "active")
                 .get()
                 .await()
 
-            // تصفية التوكنات غير الفارغة ودمجها بفاصلة (مثال: token1,token2)
-            val adminTokens = adminsSnapshot.documents
+            // تصفية التوكنات للحصول على قائمة بالتوكنات غير الفارغة
+            val adminTokensList = adminsSnapshot.documents
                 .mapNotNull { it.getString("fcm_token") }
                 .filter { it.isNotEmpty() }
-                .joinToString(",")
 
             val counterRef = db.collection("counters").document("orders")
             val orderRef = db.collection("orders").document()
@@ -56,18 +55,35 @@ class OrderRepositoryImpl @Inject constructor(
                     transaction.set(itemRef, finalItem)
                 }
 
-                // 2. إنشاء إشعار للإدارة وتمرير التوكنات المجمعة
-                val adminAlarmRef = db.collection("admin_alarm").document()
-                val adminAlarmData = admin_alarm(
-                    alarm_id = adminAlarmRef.id,
-                    date = com.google.firebase.Timestamp.now(),
-                    order_number = newOrderNumber,
-                    title = "طلب تسعيرة جديد",
-                    message = "قام العميل بطلب فاتورة عرض سعر جديدة برقم $newOrderNumber",
-                    fcm_token = adminTokens, // <-- التوكنات أصبحت جاهزة هنا
-                    isRead = false
-                )
-                transaction.set(adminAlarmRef, adminAlarmData)
+                // 2. إنشاء إشعار مستقل لكل مدير/موظف يمتلك Token
+                if (adminTokensList.isNotEmpty()) {
+                    adminTokensList.forEach { token ->
+                        val adminAlarmRef = db.collection("admin_alarm").document()
+                        val adminAlarmData = admin_alarm(
+                            alarm_id = adminAlarmRef.id,
+                            date = com.google.firebase.Timestamp.now(),
+                            order_number = newOrderNumber,
+                            title = "طلب تسعيرة جديد",
+                            message = "قام العميل بطلب فاتورة عرض سعر جديدة برقم $newOrderNumber",
+                            fcm_token = token, // <-- توكن واحد لكل تنبيه منفصل
+                            isRead = false
+                        )
+                        transaction.set(adminAlarmRef, adminAlarmData)
+                    }
+                } else {
+                    // في حال لم يكن هناك أي مدير مسجل أو التوكنات فارغة، ننشئ تنبيهاً واحداً عاماً
+                    val adminAlarmRef = db.collection("admin_alarm").document()
+                    val adminAlarmData = admin_alarm(
+                        alarm_id = adminAlarmRef.id,
+                        date = com.google.firebase.Timestamp.now(),
+                        order_number = newOrderNumber,
+                        title = "طلب تسعيرة جديد",
+                        message = "قام العميل بطلب فاتورة عرض سعر جديدة برقم $newOrderNumber",
+                        fcm_token = "",
+                        isRead = false
+                    )
+                    transaction.set(adminAlarmRef, adminAlarmData)
+                }
 
                 true
             }.await()
