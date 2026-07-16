@@ -53,13 +53,12 @@ class MainActivity : ComponentActivity() {
         val isLoggedIn = sharedPref.getBoolean("is_logged_in", false)
         val savedUserId = sharedPref.getString("user_id", "") ?: ""
 
-        // استخراج توكن الإشعارات وحفظه فور تشغيل التطبيق لضمان التحديث المستمر
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (task.isSuccessful) {
-                val token = task.result
-                sharedPref.edit().putString("fcm_token", token).apply()
-                // إذا كان العميل مسجلاً دخوله، نحدث التوكن في قاعدة البيانات لكي يستطيع الآدمن إرسال إشعار له
-                if (isLoggedIn && savedUserId.isNotEmpty()) {
+        // استخراج توكن الإشعارات وحفظه فور تشغيل التطبيق
+        if (isLoggedIn && savedUserId.isNotEmpty()) {
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val token = task.result
+                    sharedPref.edit().putString("fcm_token", token).apply()
                     FirebaseFirestore.getInstance().collection("users").document(savedUserId)
                         .update("fcm_token", token)
                 }
@@ -80,7 +79,6 @@ class MainActivity : ComponentActivity() {
                         composable("login") {
                             LoginScreen(
                                 navigateToMain = { userId ->
-                                    // جلب التوكن وتحديثه فور تسجيل الدخول لأول مرة
                                     val token = sharedPref.getString("fcm_token", "") ?: ""
                                     if (token.isNotEmpty()) {
                                         FirebaseFirestore.getInstance().collection("users").document(userId)
@@ -99,7 +97,6 @@ class MainActivity : ComponentActivity() {
                             MainScreen(
                                 userId = userId,
                                 navigateToRequestParts = { brandName, vehicleName, vehicleModel, manufacture, vinNumber ->
-                                    // حماية قوية: إذا كان الحقل فارغاً نضع "غير_محدد" لتجنب انهيار مسار التنقل //
                                     val safeVin = vinNumber.ifBlank { "غير_محدد" }.replace("/", "-")
                                     val safeBrand = brandName.ifBlank { "غير_محدد" }.replace("/", "-")
                                     val safeName = vehicleName.ifBlank { "غير_محدد" }.replace("/", "-")
@@ -118,7 +115,6 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("notifications/$safeId")
                                 },
                                 navigateToLogin = {
-                                    // مسح التوكن كإجراء أمني عند تسجيل الخروج
                                     if (userId.isNotEmpty()) {
                                         FirebaseFirestore.getInstance().collection("users").document(userId)
                                             .update("fcm_token", "")
@@ -134,7 +130,6 @@ class MainActivity : ComponentActivity() {
                         }
 
                         composable("request_parts/{userId}/{brandName}/{vehicleName}/{vehicleModel}/{manufacture}/{vinNumber}") { backStackEntry ->
-                            // استرجاع البيانات وإزالة كلمة "غير_محدد" لتعود كحقول فارغة في الواجهة إذا لزم الأمر
                             val userId = backStackEntry.arguments?.getString("userId")?.replace("unknown_user", "") ?: ""
                             val brandName = backStackEntry.arguments?.getString("brandName")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
                             val vehicleName = backStackEntry.arguments?.getString("vehicleName")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
