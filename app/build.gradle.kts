@@ -87,7 +87,7 @@ dependencies {
 
     // Google ML Kit Text Recognition (لقراءة النصوص من الصورة داخل الهاتف)
     implementation("com.google.mlkit:text-recognition:16.0.0")
-
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.0")
     // Coil (لتحميل وعرض الصور في واجهات Compose)
     implementation("io.coil-kt:coil-compose:2.6.0")
 }
