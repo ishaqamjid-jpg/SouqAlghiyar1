@@ -21,16 +21,8 @@ class OrderRepositoryImpl @Inject constructor(
 
     override suspend fun submitOrderWithItems(order: Order, items: List<OrderItem>): Result<Unit> {
         return try {
-            // 1. جلب توكنات جميع المدراء والموظفين النشطين كقائمة
-            val adminsSnapshot = db.collection("UserEmp")
-                .whereEqualTo("status", "active")
-                .get()
-                .await()
-
-            // تصفية التوكنات للحصول على قائمة بالتوكنات غير الفارغة
-            val adminTokensList = adminsSnapshot.documents
-                .mapNotNull { it.getString("fcm_token") }
-                .filter { it.isNotEmpty() }
+            val adminsSnapshot = db.collection("UserEmp").whereEqualTo("status", "active").get().await()
+            val adminTokensList = adminsSnapshot.documents.mapNotNull { it.getString("fcm_token") }.filter { it.isNotEmpty() }
 
             val counterRef = db.collection("counters").document("orders")
             val orderRef = db.collection("orders").document()
@@ -55,7 +47,6 @@ class OrderRepositoryImpl @Inject constructor(
                     transaction.set(itemRef, finalItem)
                 }
 
-                // 2. إنشاء إشعار مستقل لكل مدير/موظف يمتلك Token
                 if (adminTokensList.isNotEmpty()) {
                     adminTokensList.forEach { token ->
                         val adminAlarmRef = db.collection("admin_alarm").document()
@@ -65,13 +56,12 @@ class OrderRepositoryImpl @Inject constructor(
                             order_number = newOrderNumber,
                             title = "طلب تسعيرة جديد",
                             message = "قام العميل بطلب فاتورة عرض سعر جديدة برقم $newOrderNumber",
-                            fcm_token = token, // <-- توكن واحد لكل تنبيه منفصل
+                            fcm_token = token,
                             isRead = false
                         )
                         transaction.set(adminAlarmRef, adminAlarmData)
                     }
                 } else {
-                    // في حال لم يكن هناك أي مدير مسجل أو التوكنات فارغة، ننشئ تنبيهاً واحداً عاماً
                     val adminAlarmRef = db.collection("admin_alarm").document()
                     val adminAlarmData = admin_alarm(
                         alarm_id = adminAlarmRef.id,
@@ -84,7 +74,6 @@ class OrderRepositoryImpl @Inject constructor(
                     )
                     transaction.set(adminAlarmRef, adminAlarmData)
                 }
-
                 true
             }.await()
             Result.success(Unit)
@@ -96,10 +85,7 @@ class OrderRepositoryImpl @Inject constructor(
 
     override fun getCategories(): Flow<List<String>> = callbackFlow {
         val sub = db.collection("spare_parts_categories").addSnapshotListener { snapshot, error ->
-            if (error != null) {
-                close(error)
-                return@addSnapshotListener
-            }
+            if (error != null) { close(error); return@addSnapshotListener }
             if (snapshot != null) {
                 val list = snapshot.documents.mapNotNull { it.getString("spare_parts_categories") }
                 trySend(list).isSuccess
@@ -110,10 +96,7 @@ class OrderRepositoryImpl @Inject constructor(
 
     override fun getQualityTypes(): Flow<List<String>> = callbackFlow {
         val sub = db.collection("quality_types").addSnapshotListener { snapshot, error ->
-            if (error != null) {
-                close(error)
-                return@addSnapshotListener
-            }
+            if (error != null) { close(error); return@addSnapshotListener }
             if (snapshot != null) {
                 val list = snapshot.documents.mapNotNull { it.getString("quality_types") }
                 trySend(list).isSuccess
@@ -124,10 +107,7 @@ class OrderRepositoryImpl @Inject constructor(
 
     override fun getLocations(): Flow<List<String>> = callbackFlow {
         val sub = db.collection("location").addSnapshotListener { snapshot, error ->
-            if (error != null) {
-                close(error)
-                return@addSnapshotListener
-            }
+            if (error != null) { close(error); return@addSnapshotListener }
             if (snapshot != null) {
                 val list = snapshot.documents.mapNotNull { it.getString("location") }
                 trySend(list).isSuccess
@@ -138,54 +118,40 @@ class OrderRepositoryImpl @Inject constructor(
 
     override suspend fun incrementUserRejections(userId: String): Result<Unit> {
         return try {
-            db.collection("users").document(userId)
-                .update("number_of_rejections", FieldValue.increment(1.0)).await()
+            db.collection("users").document(userId).update("number_of_rejections", FieldValue.increment(1.0)).await()
             Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        } catch (e: Exception) { Result.failure(e) }
     }
 
     override fun getUserOrders(userId: String): Flow<List<OrderWithItems>> = callbackFlow {
-        val subscription = db.collection("orders")
-            .whereEqualTo("user_id", userId)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    close(error)
-                    return@addSnapshotListener
-                }
+        val subscription = db.collection("orders").whereEqualTo("user_id", userId).addSnapshotListener { snapshot, error ->
+            if (error != null) { close(error); return@addSnapshotListener }
+            if (snapshot == null || snapshot.isEmpty) { trySend(emptyList()); return@addSnapshotListener }
 
-                if (snapshot == null || snapshot.isEmpty) {
-                    trySend(emptyList())
-                    return@addSnapshotListener
-                }
-
-                launch {
-                    try {
-                        val orderList = mutableListOf<OrderWithItems>()
-
-                        for (doc in snapshot.documents) {
-                            val order = doc.toObject(Order::class.java)?.copy(order_id = doc.id)
-                            if (order != null) {
-                                val itemsSnapshot = db.collection("orders").document(order.order_id).collection("items").get().await()
-                                val items = itemsSnapshot.documents.mapNotNull { itemDoc ->
-                                    itemDoc.toObject(OrderItem::class.java)?.copy(item_id = itemDoc.id)
-                                }
-                                orderList.add(OrderWithItems(order, items))
+            launch {
+                try {
+                    val orderList = mutableListOf<OrderWithItems>()
+                    for (doc in snapshot.documents) {
+                        val order = doc.toObject(Order::class.java)?.copy(order_id = doc.id)
+                        if (order != null) {
+                            val itemsSnapshot = db.collection("orders").document(order.order_id).collection("items").get().await()
+                            val items = itemsSnapshot.documents.mapNotNull { itemDoc ->
+                                itemDoc.toObject(OrderItem::class.java)?.copy(item_id = itemDoc.id)
                             }
+                            orderList.add(OrderWithItems(order, items))
                         }
-
-                        send(orderList.sortedByDescending { it.order.created_at })
-
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                        send(emptyList())
                     }
+                    send(orderList.sortedByDescending { it.order.created_at })
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    send(emptyList())
                 }
             }
+        }
         awaitClose { subscription.remove() }
     }
 
+    // ------------- التعديل الجوهري هنا -------------
     override suspend fun updateOrderStatus(
         orderId: String,
         newStatus: String,
@@ -193,12 +159,61 @@ class OrderRepositoryImpl @Inject constructor(
         disapprovalNotes: String
     ): Result<Unit> {
         return try {
+            // 1. تحديث حالة الطلب
             val updates = mapOf(
                 "order_status" to newStatus,
                 "approval_notes" to approvalNotes,
                 "disapproval_notes" to disapprovalNotes
             )
             db.collection("orders").document(orderId).update(updates).await()
+
+            // 2. جلب رقم الطلب للتعامل مع الإشعارات
+            val orderSnapshot = db.collection("orders").document(orderId).get().await()
+            val orderNumber = orderSnapshot.getLong("order_number") ?: 0L
+
+            // 3. حذف إشعار العميل القديم (لأنه قد تم اتخاذ قرار بشأنه)
+            val userAlarms = db.collection("user_alarm").whereEqualTo("order_number", orderNumber).get().await()
+            for (doc in userAlarms.documents) {
+                db.collection("user_alarm").document(doc.id).delete().await()
+            }
+
+            // 4. إنشاء إشعار للإدارة بقرار العميل (في حال الرفض أو القبول)
+            if (newStatus == "canceled" || newStatus == "completed") {
+                val adminsSnapshot = db.collection("UserEmp").whereEqualTo("status", "active").get().await()
+                val adminTokensList = adminsSnapshot.documents.mapNotNull { it.getString("fcm_token") }.filter { it.isNotEmpty() }
+
+                val title = if (newStatus == "canceled") "طلب مرفوض" else "طلب مكتمل"
+                val message = if (newStatus == "canceled") "قام العميل برفض الفاتورة للطلب رقم $orderNumber" else "قام العميل بالموافقة على الفاتورة للطلب رقم $orderNumber"
+
+                if (adminTokensList.isNotEmpty()) {
+                    adminTokensList.forEach { token ->
+                        val adminAlarmRef = db.collection("admin_alarm").document()
+                        val adminAlarmData = admin_alarm(
+                            alarm_id = adminAlarmRef.id,
+                            date = com.google.firebase.Timestamp.now(),
+                            order_number = orderNumber,
+                            title = title,
+                            message = message,
+                            fcm_token = token,
+                            isRead = false
+                        )
+                        adminAlarmRef.set(adminAlarmData).await()
+                    }
+                } else {
+                    val adminAlarmRef = db.collection("admin_alarm").document()
+                    val adminAlarmData = admin_alarm(
+                        alarm_id = adminAlarmRef.id,
+                        date = com.google.firebase.Timestamp.now(),
+                        order_number = orderNumber,
+                        title = title,
+                        message = message,
+                        fcm_token = "",
+                        isRead = false
+                    )
+                    adminAlarmRef.set(adminAlarmData).await()
+                }
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
