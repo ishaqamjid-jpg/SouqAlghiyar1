@@ -3,6 +3,9 @@ package com.isaac.souqalghiyar.presentation.main
 import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.isaac.souqalghiyar.domain.model.Advertisement
 import com.isaac.souqalghiyar.domain.model.users
 import com.isaac.souqalghiyar.domain.repository.MainRepository
@@ -81,6 +84,7 @@ class MainViewModel @Inject constructor(
 
     fun checkPendingOrders(userId: String) {
         viewModelScope.launch {
+            // TODO: 구현 منطق التحقق من الطلبات المعلقة الفعلي
             _hasPendingOrders.value = true 
         }
     }
@@ -98,10 +102,35 @@ class MainViewModel @Inject constructor(
         return when (vin.first().uppercaseChar()) {
             '1', '4', '5' -> "الولايات المتحدة الأمريكية"
             '2' -> "كندا"
+            '3' -> "المكسيك"
             'J' -> "اليابان"
+            'K' -> "كوريا الجنوبية"
+            'S' -> "المملكة المتحدة (بريطانيا)"
+            'V' -> "فرنسا / إسبانيا"
+            'T' -> "سويسرا"
             'W' -> "المانيا"
-            'K' -> "مواصفات خليجي" 
-            else -> "غير معروف"
+            'Z' -> "إيطاليا"
+            'L' -> "الصين"
+            else -> "غير معروف / مواصفات أخرى"
+        }
+    }
+
+    // دالة مساعدة لمحاولة استخراج علامة تجارية من الـ VIN (مبسطة جداً لأغراض العرض)
+    private fun getBrandFromVin(vin: String): String {
+        if (vin.length < 3) return "غير محدد"
+        val wmi = vin.substring(0, 3).uppercase()
+        return when {
+            wmi.startsWith("1G") -> "شيفروليه / جي إم سي"
+            wmi.startsWith("1F") -> "فورد"
+            wmi.startsWith("1N") -> "نيسان"
+            wmi.startsWith("JT") -> "تويوتا"
+            wmi.startsWith("JM") -> "مازدا"
+            wmi.startsWith("JH") -> "هوندا"
+            wmi.startsWith("KM") -> "هيونداي"
+            wmi.startsWith("WA") -> "أودي"
+            wmi.startsWith("WB") -> "بي إم دبليو"
+            wmi.startsWith("WD") -> "مرسيدس بنز"
+            else -> "غير محدد"
         }
     }
 
@@ -113,14 +142,46 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             _isAnalyzing.value = true
             try {
-                delay(2000) 
-                val rawVin = "1NXBR32E23B123456" 
-                val cleanVin = cleanExtractedVin(rawVin)
-                val autoCountry = getManufactureCountryFromVin(cleanVin)
-                onSuccess("تويوتا", "كورولا", "2022", autoCountry, cleanVin)
+                val image = InputImage.fromBitmap(bitmap, 0)
+                val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+
+                recognizer.process(image)
+                    .addOnSuccessListener { visionText ->
+                        // البحث عن نص يطابق نمط الـ VIN (عادة 17 حرف ورقم)
+                        var foundVin = ""
+                        for (block in visionText.textBlocks) {
+                            for (line in block.lines) {
+                                val cleanText = cleanExtractedVin(line.text)
+                                // رقم الشاصي عادة يتكون من 17 خانة
+                                if (cleanText.length == 17) {
+                                    foundVin = cleanText
+                                    break
+                                } else if (cleanText.length > 10 && cleanText.length < 17) {
+                                    // أحياناً قد لا يقرأه كاملاً بشكل دقيق، نأخذ أطول نص محتمل
+                                    if (cleanText.length > foundVin.length) {
+                                        foundVin = cleanText
+                                    }
+                                }
+                            }
+                        }
+
+                        if (foundVin.isNotEmpty()) {
+                            val autoCountry = getManufactureCountryFromVin(foundVin)
+                            val estimatedBrand = getBrandFromVin(foundVin)
+                            // لا يمكن استخراج الموديل والسنة بدقة من الـ VIN بدون API خارجي ضخم، 
+                            // لذلك سنتركها فارغة ليملأها المستخدم، أو نضع قيماً افتراضية
+                            onSuccess(estimatedBrand, "", "", autoCountry, foundVin)
+                        } else {
+                            onError("لم يتم العثور على رقم شاصي واضح في الصورة. يرجى التقاط صورة أوضح.")
+                        }
+                        _isAnalyzing.value = false
+                    }
+                    .addOnFailureListener { e ->
+                        onError("فشل في تحليل الصورة: ${e.message}")
+                        _isAnalyzing.value = false
+                    }
             } catch (e: Exception) {
-                onError("فشل في تحليل الصورة: ${e.message}")
-            } finally {
+                onError("حدث خطأ غير متوقع: ${e.message}")
                 _isAnalyzing.value = false
             }
         }
@@ -134,11 +195,14 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             _isSearchingVin.value = true
             try {
-                delay(1500) 
+                delay(1000) // محاكاة الاتصال بالإنترنت
                 if (vin.length < 10) throw Exception("رقم الشاصي قصير جداً للبحث")
                 val cleanVin = cleanExtractedVin(vin)
                 val autoCountry = getManufactureCountryFromVin(cleanVin)
-                onSuccess("تويوتا", "كامري", "2023", autoCountry)
+                val estimatedBrand = getBrandFromVin(cleanVin)
+                
+                // بما أننا لا نستخدم API حقيقي حالياً، سنعيد الماركة وبلد الصنع المستنتجين من الـ VIN
+                onSuccess(estimatedBrand, "", "", autoCountry)
             } catch (e: Exception) {
                 onError(e.message ?: "حدث خطأ أثناء البحث")
             } finally {
