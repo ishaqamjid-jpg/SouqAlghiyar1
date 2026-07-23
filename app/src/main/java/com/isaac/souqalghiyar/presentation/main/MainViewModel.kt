@@ -12,11 +12,16 @@ import com.isaac.souqalghiyar.domain.repository.MainRepository
 import com.isaac.souqalghiyar.domain.repository.UserRepository
 import com.isaac.souqalghiyar.domain.repository.NotificationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import javax.inject.Inject
 
 @HiltViewModel
@@ -84,17 +89,21 @@ class MainViewModel @Inject constructor(
 
     fun checkPendingOrders(userId: String) {
         viewModelScope.launch {
-            // TODO: 구현 منطق التحقق من الطلبات المعلقة الفعلي
             _hasPendingOrders.value = true 
         }
     }
 
+    // تنظيف استخراج الصورة باستخدام Regex
     private fun cleanExtractedVin(rawVin: String): String {
-        return rawVin.uppercase()
-            .replace("O", "0") 
+        var cleanText = rawVin.replace(Regex("\\s+"), "").uppercase()
+        cleanText = cleanText.replace("O", "0")
             .replace("Q", "0")
-            .replace("I", "1") 
-            .filter { it.isLetterOrDigit() }
+            .replace("I", "1")
+        
+        // البحث عن أقوى تطابق لـ 17 حرف ورقم متتالي
+        val vinRegex = Regex("[A-HJ-NPR-Z0-9]{17}")
+        val match = vinRegex.find(cleanText)
+        return match?.value ?: cleanText.filter { it.isLetterOrDigit() }
     }
 
     private fun getManufactureCountryFromVin(vin: String): String {
@@ -115,7 +124,6 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // دالة مساعدة لمحاولة استخراج علامة تجارية من الـ VIN (مبسطة جداً لأغراض العرض)
     private fun getBrandFromVin(vin: String): String {
         if (vin.length < 3) return "غير محدد"
         val wmi = vin.substring(0, 3).uppercase()
@@ -134,6 +142,34 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    // دالة الاتصال بالـ API الحقيقي (NHTSA)
+    private suspend fun fetchCarDetailsFromApi(vin: String): Map<String, String> = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/$vin?format=json")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 5000
+
+            if (connection.responseCode == 200) {
+                val response = connection.inputStream.bufferedReader().readText()
+                val jsonObject = JSONObject(response)
+                val resultsArray = jsonObject.optJSONArray("Results")
+                
+                if (resultsArray != null && resultsArray.length() > 0) {
+                    val carData = resultsArray.getJSONObject(0)
+                    val make = carData.optString("Make", "")
+                    val model = carData.optString("Model", "")
+                    val year = carData.optString("ModelYear", "")
+                    
+                    return@withContext mapOf("brand" to make, "model" to model, "year" to year)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return@withContext emptyMap()
+    }
+
     fun analyzeVinImageFromBitmap(
         bitmap: Bitmap,
         onSuccess: (brand: String, model: String, year: String, madeIn: String, vin: String) -> Unit,
@@ -147,34 +183,26 @@ class MainViewModel @Inject constructor(
 
                 recognizer.process(image)
                     .addOnSuccessListener { visionText ->
-                        // البحث عن نص يطابق نمط الـ VIN (عادة 17 حرف ورقم)
-                        var foundVin = ""
-                        for (block in visionText.textBlocks) {
-                            for (line in block.lines) {
-                                val cleanText = cleanExtractedVin(line.text)
-                                // رقم الشاصي عادة يتكون من 17 خانة
-                                if (cleanText.length == 17) {
-                                    foundVin = cleanText
-                                    break
-                                } else if (cleanText.length > 10 && cleanText.length < 17) {
-                                    // أحياناً قد لا يقرأه كاملاً بشكل دقيق، نأخذ أطول نص محتمل
-                                    if (cleanText.length > foundVin.length) {
-                                        foundVin = cleanText
-                                    }
-                                }
-                            }
-                        }
+                        val cleanLines = visionText.textBlocks.flatMap { it.lines }.map { cleanExtractedVin(it.text) }
+                        // أولوية للكلمات التي طولها 17 حرفاً تماماً
+                        val foundVin = cleanLines.find { it.length == 17 } ?: cleanLines.maxByOrNull { it.length } ?: ""
 
                         if (foundVin.isNotEmpty()) {
-                            val autoCountry = getManufactureCountryFromVin(foundVin)
-                            val estimatedBrand = getBrandFromVin(foundVin)
-                            // لا يمكن استخراج الموديل والسنة بدقة من الـ VIN بدون API خارجي ضخم، 
-                            // لذلك سنتركها فارغة ليملأها المستخدم، أو نضع قيماً افتراضية
-                            onSuccess(estimatedBrand, "", "", autoCountry, foundVin)
+                            viewModelScope.launch {
+                                // جلب البيانات من الإنترنت فور استخراج الرقم من الصورة
+                                val apiData = fetchCarDetailsFromApi(foundVin)
+                                val autoCountry = getManufactureCountryFromVin(foundVin)
+                                val finalBrand = apiData["brand"].takeIf { !it.isNullOrEmpty() } ?: getBrandFromVin(foundVin)
+                                val finalModel = apiData["model"] ?: ""
+                                val finalYear = apiData["year"] ?: ""
+
+                                onSuccess(finalBrand, finalModel, finalYear, autoCountry, foundVin)
+                                _isAnalyzing.value = false
+                            }
                         } else {
                             onError("لم يتم العثور على رقم شاصي واضح في الصورة. يرجى التقاط صورة أوضح.")
+                            _isAnalyzing.value = false
                         }
-                        _isAnalyzing.value = false
                     }
                     .addOnFailureListener { e ->
                         onError("فشل في تحليل الصورة: ${e.message}")
@@ -195,14 +223,18 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             _isSearchingVin.value = true
             try {
-                delay(1000) // محاكاة الاتصال بالإنترنت
-                if (vin.length < 10) throw Exception("رقم الشاصي قصير جداً للبحث")
                 val cleanVin = cleanExtractedVin(vin)
-                val autoCountry = getManufactureCountryFromVin(cleanVin)
-                val estimatedBrand = getBrandFromVin(cleanVin)
+                if (cleanVin.length < 10) throw Exception("رقم الشاصي قصير جداً للبحث")
                 
-                // بما أننا لا نستخدم API حقيقي حالياً، سنعيد الماركة وبلد الصنع المستنتجين من الـ VIN
-                onSuccess(estimatedBrand, "", "", autoCountry)
+                // البحث في API الحقيقي
+                val apiData = fetchCarDetailsFromApi(cleanVin)
+                val autoCountry = getManufactureCountryFromVin(cleanVin)
+                
+                val finalBrand = apiData["brand"].takeIf { !it.isNullOrEmpty() } ?: getBrandFromVin(cleanVin)
+                val finalModel = apiData["model"] ?: ""
+                val finalYear = apiData["year"] ?: ""
+
+                onSuccess(finalBrand, finalModel, finalYear, autoCountry)
             } catch (e: Exception) {
                 onError(e.message ?: "حدث خطأ أثناء البحث")
             } finally {
