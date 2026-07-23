@@ -338,7 +338,8 @@ fun CarDetailsFields(
     var expandedMadeIn by remember { mutableStateOf(false) }
 
     val yearsList = (2000..2026).map { it.toString() }.reversed()
-    val madeInOptions = listOf("الولايات المتحدة الأمريكية", "مواصفات خليجي", "اليابان", "المانيا", "كندا", "غير معروف")
+    // هنا وضعنا "غير معروف" كأول خيار
+    val madeInOptions = listOf("غير معروف", "الولايات المتحدة الأمريكية", "مواصفات خليجي", "اليابان", "المانيا", "كندا")
 
     val defaultTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
@@ -368,7 +369,17 @@ fun CarDetailsFields(
                 }
             }
             ExposedDropdownMenuBox(expanded = expandedMadeIn, onExpandedChange = { expandedMadeIn = !expandedMadeIn }, modifier = Modifier.weight(1f)) {
-                OutlinedTextField(value = madeIn, onValueChange = onMadeInChange, label = { Text("مكان التصنيع *") }, modifier = Modifier.menuAnchor().fillMaxWidth(), colors = defaultTextFieldColors, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMadeIn) }, shape = RoundedCornerShape(12.dp))
+                // تم التعديل هنا: readOnly = true و onValueChange فارغة ليصبح إجبارياً ولا يقبل الكتابة اليدوية
+                OutlinedTextField(
+                    value = madeIn, 
+                    onValueChange = {}, 
+                    readOnly = true, 
+                    label = { Text("مكان التصنيع *") }, 
+                    modifier = Modifier.menuAnchor().fillMaxWidth(), 
+                    colors = defaultTextFieldColors, 
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMadeIn) }, 
+                    shape = RoundedCornerShape(12.dp)
+                )
                 ExposedDropdownMenu(expanded = expandedMadeIn, onDismissRequest = { expandedMadeIn = false }, modifier = Modifier.background(SurfaceDark)) {
                     madeInOptions.forEach { opt -> DropdownMenuItem(text = { Text(opt, color = TextWhite) }, onClick = { onMadeInChange(opt); expandedMadeIn = false }) }
                 }
