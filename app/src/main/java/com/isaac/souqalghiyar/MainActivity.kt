@@ -121,8 +121,9 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                     sharedPref.edit().clear().apply()
+                                    // مسح الـ Backstack بالكامل لضمان عدم العودة
                                     navController.navigate("login") {
-                                        popUpTo(navController.graph.id) { inclusive = true }
+                                        popUpTo(0) { inclusive = true }
                                         launchSingleTop = true
                                     }
                                 }
@@ -133,7 +134,7 @@ class MainActivity : ComponentActivity() {
                             val userId = backStackEntry.arguments?.getString("userId")?.replace("unknown_user", "") ?: ""
                             val brandName = backStackEntry.arguments?.getString("brandName")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
                             val vehicleName = backStackEntry.arguments?.getString("vehicleName")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
-                            val vehicleModel = backStackEntry.arguments?.getString("vehicleModel")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
+                            val vehicleModel = backStackEntry.arguments?.getString("vehicleModel")?.replace("vehicleName", "")?.replace("-", "/") ?: ""
                             val manufacture = backStackEntry.arguments?.getString("manufacture")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
                             val vinNumber = backStackEntry.arguments?.getString("vinNumber")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
 
