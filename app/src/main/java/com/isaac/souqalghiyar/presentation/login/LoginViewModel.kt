@@ -53,7 +53,7 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    fun authenticateUser(onSuccess: (String) -> Unit) {
+    fun authenticateUser() {
         val currentPhone = _phone.value.trim()
         val currentName = _name.value.trim()
 
@@ -90,7 +90,6 @@ class LoginViewModel @Inject constructor(
                         return@launch
                     }
 
-                    // يتم التحقق الفعلي هنا عبر Firebase داخل الـ authRepository
                     val result = authRepository.authenticateUser(currentPhone, currentName, _isRegisterMode.value)
                     result.fold(
                         onSuccess = { userId ->
@@ -98,7 +97,6 @@ class LoginViewModel @Inject constructor(
                                 authRepository.saveSessionLocally(userId, currentName, currentPhone)
                             }
                             _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true, userId = userId)
-                            onSuccess(userId)
                         },
                         onFailure = { error ->
                             _uiState.value = _uiState.value.copy(isLoading = false, error = error.message)
