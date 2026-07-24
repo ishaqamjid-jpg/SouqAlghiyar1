@@ -2,6 +2,7 @@ package com.isaac.souqalghiyar.di
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.google.firebase.auth.FirebaseAuth // تم إضافة هذا الاستيراد
 import com.google.firebase.firestore.FirebaseFirestore
 import com.isaac.souqalghiyar.data.repository.AuthRepositoryImpl
 import com.isaac.souqalghiyar.data.repository.MainRepositoryImpl
@@ -30,6 +31,13 @@ object AppModule {
         return FirebaseFirestore.getInstance()
     }
 
+    // 👈 تمت إضافة مزود FirebaseAuth هنا
+    @Provides
+    @Singleton
+    fun provideFirebaseAuth(): FirebaseAuth {
+        return FirebaseAuth.getInstance()
+    }
+
     @Provides
     @Singleton
     fun provideSharedPreferences(@ApplicationContext context: Context): SharedPreferences {
@@ -39,7 +47,7 @@ object AppModule {
     @Provides
     @Singleton
     fun provideAuthRepository(
-        db: FirebaseFirestore, 
+        db: FirebaseFirestore,
         sharedPreferences: SharedPreferences
     ): AuthRepository {
         return AuthRepositoryImpl(db, sharedPreferences)
@@ -63,7 +71,6 @@ object AppModule {
         return UserRepositoryImpl(firestore)
     }
 
-    // تم إضافة مستودع الإشعارات هنا ليتعرف عليه Hilt
     @Provides
     @Singleton
     fun provideNotificationRepository(firestore: FirebaseFirestore): NotificationRepository {

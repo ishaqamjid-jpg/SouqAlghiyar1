@@ -65,6 +65,9 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore-ktx") // قاعدة البيانات الرئيسية للطلبات والمستخدمين
     implementation("com.google.firebase:firebase-messaging-ktx") // مهمة جداً لإرسال واستقبال الإشعارات والـ fcm_token
     // implementation("com.google.firebase:firebase-database-ktx") // (اختياري) ارفع التعليق عنها فقط إذا كنت تستخدم الـ Realtime Database بجانب Firestore
+    implementation("com.google.firebase:firebase-auth-ktx:22.3.1")
+
+
 
     // 5. خدمات الخلفية والشبكة (Background Tasks & Network)
     implementation("androidx.work:work-runtime-ktx:2.9.0") // مفيدة لإدارة مهام الخلفية المستمرة
