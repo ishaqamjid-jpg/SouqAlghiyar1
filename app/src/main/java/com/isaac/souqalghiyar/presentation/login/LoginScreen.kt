@@ -42,7 +42,6 @@ val SurfaceDark = Color(0xFF1E1E1E)
 val TextWhite = Color(0xFFFFFFFF)
 val TextGray = Color(0xFFAAAAAA)
 
-// دالة التحقق من توفر الإنترنت
 fun isInternetAvailable(context: Context): Boolean {
     val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
@@ -89,15 +88,14 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(DarkBackground)
-                .systemBarsPadding() // لتجنب التداخل مع شريط الإشعارات العلوي
+                .systemBarsPadding() 
         ) {
-            // زر المعلومات
             IconButton(
                 onClick = { showAboutDialog = true },
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(16.dp)
-                    .zIndex(1f) // لضمان أولوية الضغط عليه وعدم حجبه بواسطة عناصر أخرى
+                    .zIndex(1f) 
             ) {
                 Icon(
                     imageVector = Icons.Default.Info,
@@ -117,7 +115,6 @@ fun LoginScreen(
             ) {
                 Spacer(Modifier.height(40.dp))
                 
-                // الشعار المحدث: إزالة الدائرة وجعله شفافاً وأكبر
                 Image(
                     painter = painterResource(R.drawable.logo3),
                     contentDescription = "الشعار",
@@ -160,7 +157,7 @@ fun LoginScreen(
                             if (!isInternetAvailable(context)) {
                                 Toast.makeText(context, "يرجى التحقق من اتصالك بالإنترنت", Toast.LENGTH_SHORT).show()
                             } else if (!uiState.isLoading) {
-                                viewModel.authenticateUser { navigateToMain(it) }
+                                viewModel.authenticateUser()
                             }
                         }
                     ),
@@ -186,7 +183,7 @@ fun LoginScreen(
                                     if (!isInternetAvailable(context)) {
                                         Toast.makeText(context, "يرجى التحقق من اتصالك بالإنترنت", Toast.LENGTH_SHORT).show()
                                     } else if (!uiState.isLoading) {
-                                        viewModel.authenticateUser { navigateToMain(it) }
+                                        viewModel.authenticateUser()
                                     }
                                 }
                             ),
@@ -229,7 +226,7 @@ fun LoginScreen(
                         if (!isInternetAvailable(context)) {
                             Toast.makeText(context, "يرجى التحقق من اتصالك بالإنترنت", Toast.LENGTH_SHORT).show()
                         } else if (!uiState.isLoading) {
-                            viewModel.authenticateUser { navigateToMain(it) }
+                            viewModel.authenticateUser()
                         }
                     },
                     modifier = Modifier
@@ -299,7 +296,6 @@ private fun AboutSystemDialog(onDismiss: () -> Unit) {
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // الشعار داخل الديالوج يُفضل بقائه كدائرة أو كما تحب
                 Surface(
                     modifier = Modifier
                         .size(90.dp)
