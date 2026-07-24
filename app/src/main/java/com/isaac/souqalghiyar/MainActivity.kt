@@ -2,6 +2,7 @@ package com.isaac.souqalghiyar
 
 import android.Manifest
 import android.content.Context
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -26,9 +27,14 @@ import com.isaac.souqalghiyar.presentation.orders.OrdersScreen
 import com.isaac.souqalghiyar.presentation.notifications.NotificationsScreen
 import com.isaac.souqalghiyar.ui.theme.SouqAlghiyarTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    // حقن نفس النسخة المستخدمة في AuthRepository لضمان مسح البيانات الصحيحة تماماً
+    @Inject
+    lateinit var sharedPreferences: SharedPreferences
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -49,16 +55,15 @@ class MainActivity : ComponentActivity() {
 
         askNotificationPermission()
 
-        val sharedPref = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        val isLoggedIn = sharedPref.getBoolean("is_logged_in", false)
-        val savedUserId = sharedPref.getString("user_id", "") ?: ""
+        val isLoggedIn = sharedPreferences.getBoolean("is_logged_in", false)
+        val savedUserId = sharedPreferences.getString("user_id", "") ?: ""
 
         // استخراج توكن الإشعارات وحفظه فور تشغيل التطبيق
         if (isLoggedIn && savedUserId.isNotEmpty()) {
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     val token = task.result
-                    sharedPref.edit().putString("fcm_token", token).apply()
+                    sharedPreferences.edit().putString("fcm_token", token).apply()
                     FirebaseFirestore.getInstance().collection("users").document(savedUserId)
                         .update("fcm_token", token)
                 }
@@ -79,7 +84,7 @@ class MainActivity : ComponentActivity() {
                         composable("login") {
                             LoginScreen(
                                 navigateToMain = { userId ->
-                                    val token = sharedPref.getString("fcm_token", "") ?: ""
+                                    val token = sharedPreferences.getString("fcm_token", "") ?: ""
                                     if (token.isNotEmpty()) {
                                         FirebaseFirestore.getInstance().collection("users").document(userId)
                                             .update("fcm_token", token)
@@ -87,6 +92,7 @@ class MainActivity : ComponentActivity() {
 
                                     navController.navigate("main/$userId") {
                                         popUpTo("login") { inclusive = true }
+                                        launchSingleTop = true
                                     }
                                 }
                             )
@@ -120,10 +126,12 @@ class MainActivity : ComponentActivity() {
                                             .update("fcm_token", "")
                                     }
 
-                                    sharedPref.edit().clear().apply()
-                                    // مسح الـ Backstack بالكامل لضمان عدم العودة
+                                    // مسح الجلسة بشكل صحيح ومضمون
+                                    sharedPreferences.edit().clear().apply()
+                                    
+                                    // الطريقة الصارمة والمضمونة لمسح كافة مكدس الشاشات 100%
                                     navController.navigate("login") {
-                                        popUpTo(navController.graph.id) { inclusive = true } // التعديل هنا
+                                        popUpTo(0) { inclusive = true }
                                         launchSingleTop = true
                                     }
                                 }
@@ -151,7 +159,7 @@ class MainActivity : ComponentActivity() {
 
                         composable("orders/{userId}") { backStackEntry ->
                             val routeUserId = backStackEntry.arguments?.getString("userId")?.replace("unknown_user", "") ?: ""
-                            val finalUserId = routeUserId.ifEmpty { sharedPref.getString("user_id", "") ?: "" }
+                            val finalUserId = routeUserId.ifEmpty { sharedPreferences.getString("user_id", "") ?: "" }
 
                             OrdersScreen(
                                 userId = finalUserId,
@@ -161,7 +169,7 @@ class MainActivity : ComponentActivity() {
 
                         composable("notifications/{userId}") { backStackEntry ->
                             val routeUserId = backStackEntry.arguments?.getString("userId")?.replace("unknown_user", "") ?: ""
-                            val finalUserId = routeUserId.ifEmpty { sharedPref.getString("user_id", "") ?: "" }
+                            val finalUserId = routeUserId.ifEmpty { sharedPreferences.getString("user_id", "") ?: "" }
 
                             NotificationsScreen(
                                 userId = finalUserId,
