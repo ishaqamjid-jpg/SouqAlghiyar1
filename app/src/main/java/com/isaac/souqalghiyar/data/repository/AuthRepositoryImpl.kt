@@ -3,6 +3,7 @@ package com.isaac.souqalghiyar.data.repository
 import android.content.SharedPreferences
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.isaac.souqalghiyar.domain.model.users
 import com.isaac.souqalghiyar.domain.repository.AuthRepository
 import kotlinx.coroutines.tasks.await
@@ -13,41 +14,35 @@ class AuthRepositoryImpl @Inject constructor(
     private val sharedPref: SharedPreferences
 ) : AuthRepository {
 
-    override suspend fun checkUserExists(phone: String): Result<Boolean> {
+    override suspend fun checkUserExistsAndGetName(userId: String): Result<String?> {
         return try {
-            // نستخدم phone_number لأن هذا هو اسم الحقل في الفايربيز لديك
-            val query = db.collection("users").whereEqualTo("phone_number", phone).get().await()
-            Result.success(!query.isEmpty)
+            val document = db.collection("users").document(userId).get().await()
+            if (document.exists()) {
+                val name = document.getString("display_name")
+                Result.success(name)
+            } else {
+                Result.success(null) // العميل جديد
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    override suspend fun authenticateUser(phone: String, name: String, isRegisterMode: Boolean): Result<String> {
+    override suspend fun saveUserData(userId: String, phone: String, name: String): Result<Unit> {
         return try {
-            val usersRef = db.collection("users")
-            val querySnapshot = usersRef.whereEqualTo("phone_number", phone).get().await()
-
-            if (isRegisterMode) {
-                if (!querySnapshot.isEmpty) {
-                    return Result.failure(Exception("رقم الهاتف مسجل مسبقاً. يرجى تسجيل الدخول."))
-                }
-                val newUserRef = usersRef.document()
-                val newUser = users(
-                    user_id = newUserRef.id,
-                    phone_number = phone,
-                    display_name = name,
-                    created_at = Timestamp.now()
-                )
-                newUserRef.set(newUser).await()
-                Result.success(newUserRef.id)
-            } else {
-                if (querySnapshot.isEmpty) {
-                    return Result.failure(Exception("رقم الهاتف غير مسجل. يرجى إنشاء حساب جديد."))
-                }
-                val userDoc = querySnapshot.documents.first()
-                Result.success(userDoc.id)
-            }
+            val userRef = db.collection("users").document(userId)
+            
+            val userData = hashMapOf(
+                "user_id" to userId,
+                "phone_number" to phone,
+                "display_name" to name,
+                "status" to "active",
+                "created_at" to Timestamp.now()
+            )
+            
+            // نستخدم merge حتى لا نمسح البيانات الأخرى (مثل عدد المرات المرفوضة) إذا كان المستخدم موجوداً
+            userRef.set(userData, SetOptions.merge()).await()
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
