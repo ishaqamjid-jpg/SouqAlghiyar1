@@ -1,8 +1,13 @@
 package com.isaac.souqalghiyar.domain.repository
 
 interface AuthRepository {
-    suspend fun authenticateUser(phone: String, name: String, isRegisterMode: Boolean): Result<String>
-    suspend fun checkUserExists(phone: String): Result<Boolean>
+    // التحقق هل المستخدم موجود في قاعدة البيانات وجلب اسمه إذا كان موجوداً
+    suspend fun checkUserExistsAndGetName(userId: String): Result<String?>
+    
+    // حفظ أو تحديث بيانات المستخدم في قاعدة البيانات
+    suspend fun saveUserData(userId: String, phone: String, name: String): Result<Unit>
+    
+    // حفظ الجلسة محلياً
     fun saveSessionLocally(userId: String, name: String, phone: String)
     fun checkIsLoggedIn(): Boolean
     fun getUserId(): String?
