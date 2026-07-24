@@ -1,10 +1,14 @@
 package com.isaac.souqalghiyar.presentation.login
 
+import android.app.Activity
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -56,6 +60,13 @@ fun isInternetAvailable(context: Context): Boolean {
     }
 }
 
+// دالة لتنسيق الوقت (مثلاً 05:00)
+fun formatTimer(seconds: Int): String {
+    val min = seconds / 60
+    val sec = seconds % 60
+    return String.format("%02d:%02d", min, sec)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
@@ -64,13 +75,13 @@ fun LoginScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val phone by viewModel.phone.collectAsState()
+    val otpCode by viewModel.otpCode.collectAsState()
     val name by viewModel.name.collectAsState()
     val rememberMe by viewModel.rememberMe.collectAsState()
-    val isRegisterMode by viewModel.isRegisterMode.collectAsState()
 
-    val nameFocusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
+    val activity = context as? Activity
 
     var showAboutDialog by remember { mutableStateOf(false) }
 
@@ -142,131 +153,226 @@ fun LoginScreen(
                     cursorColor = PrimaryRed
                 )
 
-                OutlinedTextField(
-                    value = phone,
-                    onValueChange = viewModel::onPhoneChange,
-                    label = { Text("رقم الهاتف") },
-                    placeholder = { Text("77xxxxxxx", color = TextGray.copy(alpha = 0.5f)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = if (isRegisterMode) ImeAction.Next else ImeAction.Done),
-                    keyboardActions = KeyboardActions(
-                        onNext = { nameFocusRequester.requestFocus() },
-                        onDone = {
-                            focusManager.clearFocus()
-                            if (!isInternetAvailable(context)) {
-                                Toast.makeText(context, "يرجى التحقق من اتصالك بالإنترنت", Toast.LENGTH_SHORT).show()
-                            } else if (!uiState.isLoading) {
-                                viewModel.authenticateUser()
-                            }
-                        }
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = customTextFieldColors
-                )
-
-                AnimatedVisibility(visible = isRegisterMode) {
-                    Column {
-                        Spacer(Modifier.height(15.dp))
+                // ------------------ الخطوة الأولى: إدخال الرقم ------------------
+                AnimatedVisibility(
+                    visible = uiState.step == LoginStep.ENTER_PHONE,
+                    enter = fadeIn(tween(500)),
+                    exit = fadeOut(tween(300))
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         OutlinedTextField(
-                            value = name,
-                            onValueChange = viewModel::onNameChange,
-                            label = { Text("الاسم الكامل") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusRequester(nameFocusRequester),
+                            value = phone,
+                            onValueChange = viewModel::onPhoneChange,
+                            label = { Text("رقم الهاتف (مع رمز الدولة)") },
+                            placeholder = { Text("+96777xxxxxxx", color = TextGray.copy(alpha = 0.5f)) },
+                            modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(
                                 onDone = {
                                     focusManager.clearFocus()
                                     if (!isInternetAvailable(context)) {
                                         Toast.makeText(context, "يرجى التحقق من اتصالك بالإنترنت", Toast.LENGTH_SHORT).show()
-                                    } else if (!uiState.isLoading) {
-                                        viewModel.authenticateUser()
+                                    } else if (!uiState.isLoading && activity != null) {
+                                        viewModel.startPhoneVerification(activity)
                                     }
                                 }
                             ),
                             shape = RoundedCornerShape(12.dp),
                             colors = customTextFieldColors
                         )
-                    }
-                }
 
-                Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(10.dp))
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { viewModel.onRememberMeChange(!rememberMe) },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = rememberMe,
-                        onCheckedChange = { viewModel.onRememberMeChange(it) },
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = PrimaryRed,
-                            uncheckedColor = TextGray,
-                            checkmarkColor = TextWhite
-                        )
-                    )
-                    Text(
-                        text = "تذكرني في المرة القادمة",
-                        color = TextWhite,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                Spacer(Modifier.height(25.dp))
-
-                Button(
-                    onClick = {
-                        focusManager.clearFocus()
-                        if (!isInternetAvailable(context)) {
-                            Toast.makeText(context, "يرجى التحقق من اتصالك بالإنترنت", Toast.LENGTH_SHORT).show()
-                        } else if (!uiState.isLoading) {
-                            viewModel.authenticateUser()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.onRememberMeChange(!rememberMe) },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = rememberMe,
+                                onCheckedChange = { viewModel.onRememberMeChange(it) },
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = PrimaryRed,
+                                    uncheckedColor = TextGray,
+                                    checkmarkColor = TextWhite
+                                )
+                            )
+                            Text(
+                                text = "تذكرني في المرة القادمة",
+                                color = TextWhite,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(55.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryRed, contentColor = TextWhite),
-                    enabled = !uiState.isLoading,
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    if (uiState.isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = TextWhite)
-                    } else {
-                        Text(
-                            text = if (isRegisterMode) "إنشاء الحساب واشتراك" else "دخول",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+
+                        Spacer(Modifier.height(25.dp))
+
+                        Button(
+                            onClick = {
+                                focusManager.clearFocus()
+                                if (!isInternetAvailable(context)) {
+                                    Toast.makeText(context, "يرجى التحقق من اتصالك بالإنترنت", Toast.LENGTH_SHORT).show()
+                                } else if (!uiState.isLoading && activity != null) {
+                                    viewModel.startPhoneVerification(activity)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(55.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryRed, contentColor = TextWhite),
+                            enabled = !uiState.isLoading,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            if (uiState.isLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = TextWhite)
+                            } else {
+                                Text("تسجيل الدخول / اشتراك", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
 
-                Spacer(Modifier.height(20.dp))
+                // ------------------ الخطوة الثانية: إدخال رمز الـ SMS ------------------
+                AnimatedVisibility(
+                    visible = uiState.step == LoginStep.ENTER_CODE,
+                    enter = fadeIn(tween(500)),
+                    exit = fadeOut(tween(300))
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "تم إرسال كود التحقق إلى رقمك",
+                            color = TextGray,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
 
-                TextButton(onClick = { viewModel.toggleRegisterMode() }) {
-                    Text(
-                        text = if (isRegisterMode) "لديك حساب بالفعل؟ تسجيل الدخول" else "اشتراك جديد في التطبيق",
-                        color = TextGray,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
+                        OutlinedTextField(
+                            value = otpCode,
+                            onValueChange = viewModel::onOtpCodeChange,
+                            label = { Text("رمز التحقق (SMS)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    focusManager.clearFocus()
+                                    if (uiState.timer > 0 && !uiState.isLoading) viewModel.verifyCode()
+                                }
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = customTextFieldColors,
+                            trailingIcon = {
+                                Text(
+                                    text = formatTimer(uiState.timer),
+                                    color = if (uiState.timer > 0) PrimaryRed else TextGray,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(end = 16.dp)
+                                )
+                            }
+                        )
+
+                        Spacer(Modifier.height(25.dp))
+
+                        Button(
+                            onClick = {
+                                focusManager.clearFocus()
+                                if (!isInternetAvailable(context)) {
+                                    Toast.makeText(context, "لا يوجد اتصال بالإنترنت", Toast.LENGTH_SHORT).show()
+                                } else if (uiState.timer == 0) {
+                                    // إذا انتهى الوقت، نعود لخطوة إدخال الرقم لطلب الكود من جديد
+                                    viewModel.resetToPhoneStep()
+                                } else if (!uiState.isLoading) {
+                                    viewModel.verifyCode()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(55.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (uiState.timer == 0) SurfaceDark else PrimaryRed,
+                                contentColor = TextWhite
+                            ),
+                            enabled = !uiState.isLoading,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            if (uiState.isLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = TextWhite)
+                            } else {
+                                Text(
+                                    text = if (uiState.timer == 0) "إعادة المحاولة" else "تحقق من الرمز",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
 
+                // ------------------ الخطوة الثالثة: إدخال الاسم (للعملاء الجدد فقط) ------------------
+                AnimatedVisibility(
+                    visible = uiState.step == LoginStep.ENTER_NAME,
+                    enter = fadeIn(tween(500)),
+                    exit = fadeOut(tween(300))
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "مرحباً بك! يرجى إدخال اسمك لإكمال التسجيل",
+                            color = PrimaryRed,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = viewModel::onNameChange,
+                            label = { Text("الاسم الكامل") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    focusManager.clearFocus()
+                                    if (!uiState.isLoading) viewModel.completeRegistration()
+                                }
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = customTextFieldColors
+                        )
+
+                        Spacer(Modifier.height(25.dp))
+
+                        Button(
+                            onClick = {
+                                focusManager.clearFocus()
+                                if (!isInternetAvailable(context)) {
+                                    Toast.makeText(context, "لا يوجد اتصال بالإنترنت", Toast.LENGTH_SHORT).show()
+                                } else if (!uiState.isLoading) {
+                                    viewModel.completeRegistration()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(55.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryRed, contentColor = TextWhite),
+                            enabled = !uiState.isLoading,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            if (uiState.isLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = TextWhite)
+                            } else {
+                                Text("إكمال الدخول", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                // ------------------ رسائل الخطأ ------------------
                 uiState.error?.let {
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(15.dp))
                     Text(
                         text = it,
                         color = PrimaryRed,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
-                        fontSize = 14.sp
+                        fontSize = 14.sp,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
@@ -321,37 +427,25 @@ private fun AboutSystemDialog(onDismiss: () -> Unit) {
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                     Icon(Icons.Default.Call, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("+967-777979719", color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("+967-736373788", color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                     Icon(Icons.Default.Email, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("ishaq.amjid@gmail.com", color = TextWhite, fontSize = 14.sp)
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                     Icon(Icons.Default.LocationOn, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("اليمن - صنعاء", color = TextWhite, fontSize = 15.sp)
