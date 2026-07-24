@@ -123,7 +123,7 @@ class MainActivity : ComponentActivity() {
                                     sharedPref.edit().clear().apply()
                                     // مسح الـ Backstack بالكامل لضمان عدم العودة
                                     navController.navigate("login") {
-                                        popUpTo(0) { inclusive = true }
+                                        popUpTo(navController.graph.id) { inclusive = true } // التعديل هنا
                                         launchSingleTop = true
                                     }
                                 }
