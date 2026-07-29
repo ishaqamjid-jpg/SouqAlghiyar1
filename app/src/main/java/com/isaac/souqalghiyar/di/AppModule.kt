@@ -2,7 +2,7 @@ package com.isaac.souqalghiyar.di
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.google.firebase.auth.FirebaseAuth // تم إضافة هذا الاستيراد
+import com.google.firebase.auth.FirebaseAuth // 👈 هذا الاستيراد مهم جداً
 import com.google.firebase.firestore.FirebaseFirestore
 import com.isaac.souqalghiyar.data.repository.AuthRepositoryImpl
 import com.isaac.souqalghiyar.data.repository.MainRepositoryImpl
@@ -31,7 +31,7 @@ object AppModule {
         return FirebaseFirestore.getInstance()
     }
 
-    // 👈 تمت إضافة مزود FirebaseAuth هنا
+    // 1. 👈 هذا هو الجزء الذي يحل المشكلة! يخبر Hilt بكيفية جلب FirebaseAuth
     @Provides
     @Singleton
     fun provideFirebaseAuth(): FirebaseAuth {
