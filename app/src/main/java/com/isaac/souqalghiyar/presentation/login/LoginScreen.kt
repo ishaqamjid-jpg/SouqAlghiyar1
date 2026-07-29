@@ -163,11 +163,11 @@ fun LoginScreen(
                         OutlinedTextField(
                             value = phone,
                             onValueChange = viewModel::onPhoneChange,
-                            label = { Text("رقم الهاتف (مع رمز الدولة)") },
-                            placeholder = { Text("+96777xxxxxxx", color = TextGray.copy(alpha = 0.5f)) },
+                            label = { Text("رقم الهاتف") },
+                            placeholder = { Text("77xxxxxxx", color = TextGray.copy(alpha = 0.5f)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Done),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(
                                 onDone = {
                                     focusManager.clearFocus()
@@ -179,7 +179,29 @@ fun LoginScreen(
                                 }
                             ),
                             shape = RoundedCornerShape(12.dp),
-                            colors = customTextFieldColors
+                            colors = customTextFieldColors,
+                            // إضافة مربع رمز الدولة غير القابل للتعديل
+                            leadingIcon = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(start = 12.dp, end = 8.dp)
+                                ) {
+                                    Text(
+                                        text = "+967",
+                                        color = TextWhite,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    )
+                                    // فاصل عمودي بسيط بين رمز الدولة ورقم الهاتف
+                                    Box(
+                                        modifier = Modifier
+                                            .height(24.dp)
+                                            .width(1.dp)
+                                            .background(TextGray.copy(alpha = 0.5f))
+                                    )
+                                }
+                            }
                         )
 
                         Spacer(Modifier.height(10.dp))
@@ -252,7 +274,7 @@ fun LoginScreen(
                             label = { Text("رمز التحقق (SMS)") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(
                                 onDone = {
                                     focusManager.clearFocus()
