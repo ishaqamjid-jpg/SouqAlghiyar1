@@ -34,7 +34,7 @@ data class LoginUiState(
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val firebaseAuth: FirebaseAuth // يجب إضافتها في AppModule
+    private val firebaseAuth: FirebaseAuth
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -65,23 +65,38 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    fun onPhoneChange(phone: String) { _phone.value = phone }
-    fun onOtpCodeChange(code: String) { _otpCode.value = code }
+    fun onPhoneChange(phone: String) {
+        // السماح فقط بالأرقام ومنع تجاوز 9 أرقام (طول الرقم في اليمن)
+        if (phone.all { it.isDigit() } && phone.length <= 9) {
+            _phone.value = phone
+        }
+    }
+    
+    fun onOtpCodeChange(code: String) { 
+        if(code.all { it.isDigit() } && code.length <= 6) {
+             _otpCode.value = code 
+        }
+    }
     fun onNameChange(name: String) { _name.value = name }
     fun onRememberMeChange(checked: Boolean) { _rememberMe.value = checked }
 
     // بدء طلب الرمز (OTP)
     fun startPhoneVerification(activity: Activity) {
         val currentPhone = _phone.value.trim()
+        
+        // التحقق من طول الرقم (يجب أن يكون 9 أرقام، مثلاً 777123456)
         if (currentPhone.isEmpty() || currentPhone.length < 9) {
-            _uiState.value = _uiState.value.copy(error = "يرجى إدخال رقم هاتف صحيح مع رمز الدولة (مثل: +967...)")
+            _uiState.value = _uiState.value.copy(error = "يرجى إدخال رقم هاتف صحيح (9 أرقام)")
             return
         }
 
         _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
+        // دمج رمز الدولة مع الرقم المُدخل ليكون بالصيغة الصحيحة لـ Firebase
+        val fullPhoneNumber = "+967$currentPhone"
+
         val options = PhoneAuthOptions.newBuilder(firebaseAuth)
-            .setPhoneNumber(currentPhone)
+            .setPhoneNumber(fullPhoneNumber)
             .setTimeout(60L, TimeUnit.SECONDS) // Firebase timeout
             .setActivity(activity)
             .setCallbacks(callbacks)
@@ -95,12 +110,17 @@ class LoginViewModel @Inject constructor(
 
     private val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
         override fun onVerificationCompleted(credential: PhoneAuthCredential) {
-            // يتم استدعاؤها أحياناً إذا تم التحقق التلقائي للرمز من السيم كارد
             signInWithPhoneAuthCredential(credential)
         }
 
         override fun onVerificationFailed(e: FirebaseException) {
-            _uiState.value = _uiState.value.copy(isLoading = false, error = "فشل التحقق: ${e.message}")
+            // توضيح رسالة الخطأ الخاصة بالحظر (Too many requests)
+            val errorMessage = if (e.message?.contains("blocked all requests") == true || e.message?.contains("too_many_requests") == true) {
+                "تم حظر الطلبات من هذا الجهاز مؤقتاً بسبب المحاولات المتكررة. يرجى المحاولة لاحقاً."
+            } else {
+                "فشل التحقق: ${e.message}"
+            }
+            _uiState.value = _uiState.value.copy(isLoading = false, error = errorMessage)
         }
 
         override fun onCodeSent(verificationId: String, token: PhoneAuthProvider.ForceResendingToken) {
@@ -142,7 +162,9 @@ class LoginViewModel @Inject constructor(
                 val user = authResult.user
                 if (user != null) {
                     val uid = user.uid
-                    checkIfUserExistsAndProceed(uid, user.phoneNumber ?: _phone.value)
+                    // نستخدم الرقم المدمج عند الحفظ
+                    val fullPhoneToSave = user.phoneNumber ?: "+967${_phone.value}"
+                    checkIfUserExistsAndProceed(uid, fullPhoneToSave)
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoading = false, error = "الرمز غير صحيح، يرجى المحاولة مرة أخرى.")
@@ -176,7 +198,7 @@ class LoginViewModel @Inject constructor(
     fun completeRegistration() {
         val currentName = _name.value.trim()
         val uid = _uiState.value.userId ?: return
-        val currentPhone = firebaseAuth.currentUser?.phoneNumber ?: _phone.value
+        val currentPhone = firebaseAuth.currentUser?.phoneNumber ?: "+967${_phone.value}"
 
         if (currentName.isEmpty()) {
             _uiState.value = _uiState.value.copy(error = "يرجى كتابة اسمك لإكمال التسجيل")
