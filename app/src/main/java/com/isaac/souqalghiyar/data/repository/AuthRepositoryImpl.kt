@@ -3,8 +3,6 @@ package com.isaac.souqalghiyar.data.repository
 import android.content.SharedPreferences
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.SetOptions
-import com.isaac.souqalghiyar.domain.model.users
 import com.isaac.souqalghiyar.domain.repository.AuthRepository
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
@@ -21,7 +19,7 @@ class AuthRepositoryImpl @Inject constructor(
                 val name = document.getString("display_name")
                 Result.success(name)
             } else {
-                Result.success(null) // العميل جديد
+                Result.success(null) // عميل جديد
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -32,16 +30,30 @@ class AuthRepositoryImpl @Inject constructor(
         return try {
             val userRef = db.collection("users").document(userId)
             
-            val userData = hashMapOf(
-                "user_id" to userId,
-                "phone_number" to phone,
-                "display_name" to name,
-                "status" to "active",
-                "created_at" to Timestamp.now()
-            )
+            // نتحقق أولاً: هل العميل موجود مسبقاً؟
+            val document = userRef.get().await()
+
+            if (!document.exists()) {
+                // 1. العميل جديد تماماً: نقوم بتعبئة الجدول بالبيانات الافتراضية كاملة
+                val newUserMap = hashMapOf(
+                    "user_id" to userId,                 // تم نسخ المعرف هنا
+                    "phone_number" to phone,
+                    "display_name" to name,
+                    "fcm_token" to "",                   // فارغ مؤقتاً (الـ MainActivity سيقوم بتحديثه)
+                    "status" to "active",                // مفعل افتراضياً
+                    "number_of_rejections" to 0.0,       // صفر افتراضياً
+                    "created_at" to Timestamp.now()
+                )
+                userRef.set(newUserMap).await()
+            } else {
+                // 2. العميل مسجل مسبقاً: نقوم بتحديث الاسم والرقم فقط حتى لا نمسح عدد مرات الرفض أو الحظر
+                val updatesMap = hashMapOf<String, Any>(
+                    "display_name" to name,
+                    "phone_number" to phone
+                )
+                userRef.update(updatesMap).await()
+            }
             
-            // نستخدم merge حتى لا نمسح البيانات الأخرى (مثل عدد المرات المرفوضة) إذا كان المستخدم موجوداً
-            userRef.set(userData, SetOptions.merge()).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
