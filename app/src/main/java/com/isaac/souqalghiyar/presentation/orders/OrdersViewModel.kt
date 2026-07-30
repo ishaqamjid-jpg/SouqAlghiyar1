@@ -2,6 +2,7 @@ package com.isaac.souqalghiyar.presentation.orders
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.firestore.FirebaseFirestore
 import com.isaac.souqalghiyar.domain.model.OrderWithItems
 import com.isaac.souqalghiyar.domain.repository.OrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 @HiltViewModel
@@ -47,8 +49,8 @@ class OrdersViewModel @Inject constructor(
         }
     }
 
-    // تم إضافة userId هنا لمعرفة صاحب الطلب
-    fun updateStatus(orderId: String, userId: String, newStatus: String, approvalNotes: String = "", disapprovalNotes: String = "") {
+    // تم إضافة orderNumber لمعرفة رقم الطلب للاشعارات
+    fun updateStatus(orderId: String, userId: String, orderNumber: Long, newStatus: String, approvalNotes: String = "", disapprovalNotes: String = "") {
         viewModelScope.launch {
             // تحديث حالة الطلب
             orderRepository.updateOrderStatus(orderId, newStatus, approvalNotes, disapprovalNotes)
@@ -56,6 +58,31 @@ class OrdersViewModel @Inject constructor(
             // إذا قام العميل برفض الفاتورة، نزيد عداد الرفض في حسابه
             if (newStatus == "canceled") {
                 orderRepository.incrementUserRejections(userId)
+            }
+            
+            try {
+                val db = FirebaseFirestore.getInstance()
+                
+                // مسح إشعار المستخدم (المتعلق بطلب الموافقة) بعد اتخاذ القرار
+                val userAlarms = db.collection("user_alarm").whereEqualTo("order_number", orderNumber).get().await()
+                for (doc in userAlarms.documents) {
+                    doc.reference.delete().await()
+                }
+
+                // في حالة الموافقة نرسل إشعار للإدارة بأن الطلب جاري التوصيل
+                if (newStatus == "going") {
+                    val adminAlarmRef = db.collection("admin_alarm").document()
+                    adminAlarmRef.set(hashMapOf(
+                        "alarm_id" to adminAlarmRef.id,
+                        "date" to com.google.firebase.Timestamp.now(),
+                        "order_number" to orderNumber,
+                        "title" to "جاري التوصيل",
+                        "message" to "الطلب رقم $orderNumber في انتظار التوصيل",
+                        "isRead" to false
+                    )).await()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
