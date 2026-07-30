@@ -2,8 +2,10 @@ package com.isaac.souqalghiyar.presentation.login
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -39,6 +41,7 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Chat
 
 val PrimaryRed = Color(0xFFE53935)
 val DarkBackground = Color(0xFF121212)
@@ -408,6 +411,8 @@ fun LoginScreen(
 
 @Composable
 private fun AboutSystemDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
@@ -449,14 +454,41 @@ private fun AboutSystemDialog(onDismiss: () -> Unit) {
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-                    Icon(Icons.Default.Call, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
+                // أولاً: اتصال برقم الهاتف
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(vertical = 4.dp)
+                        .clickable {
+                            try {
+                                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:+967777979719"))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "تعذر فتح تطبيق الاتصال", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                ) {
+                    Icon(Icons.Default.Call, contentDescription = "اتصال", tint = PrimaryRed, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("+967-777979719", color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(18.dp))
+                // ثانياً: الانتقال إلى الواتساب
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(vertical = 4.dp)
+                        .clickable {
+                            try {
+                                val url = "https://api.whatsapp.com/send?phone=967736373788"
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "تعذر فتح تطبيق الواتساب", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                ) {
+                    Icon(Icons.Default.Chat, contentDescription = "واتساب", tint = Color(0xFF25D366), modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("+967-736373788", color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
@@ -488,7 +520,7 @@ private fun AboutSystemDialog(onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "سوق الغيار خدمه تابعه لشركه الحبيب للتجاره العامه  وهو تطبيق لشراء قطع غيار لكل انواع المركبات وايضا عبر علاقات مع جميع محلات قطع الغيار في اليمن وتوصيلها اليك . حيث يمكنك اضافه القطع التي تود شرائها بكل مواصفاتها ثم يتم ارسال فاتوره عرض سعر للموافقه عليها ثم يتم توصيلها اليك  تدعم الخدمه تسديد الفاتوره عند الاستلام لكسب ثقه العميل وايضا فحص القطعه قبل الاستلام والتأكد من مطابقه مواصفات الطلب .",
+                    text = "تطبيق سوق الغيار هو اول تطبيق في اليمن الذي يوفر شراء قطع غيار لجميع انواع المركبات فى اليمن وتوصيلها اليك ، حيث يمكنك اضافه القطع التي تود شرائها بكل مواصفاتها ثم يتم ارسال فاتوره عرض سعر للموافقه عليها ثم يتم توصيلها اليك تدعم الخدمه تسديد الفاتوره عند الاستلام لكسب ثقه العميل وايضا فحص القطعه قبل الاستلام والتأكد من مطابقه مواصفات الطلب .",
                     color = TextGray,
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
