@@ -1,11 +1,7 @@
 package com.isaac.souqalghiyar.presentation.main
 
-import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.isaac.souqalghiyar.domain.model.Advertisement
 import com.isaac.souqalghiyar.domain.model.users
 import com.isaac.souqalghiyar.domain.repository.MainRepository
@@ -39,9 +35,6 @@ class MainViewModel @Inject constructor(
 
     private val _brandsList = MutableStateFlow<List<String>>(emptyList())
     val brandsList: StateFlow<List<String>> = _brandsList.asStateFlow()
-
-    private val _isAnalyzing = MutableStateFlow(false)
-    val isAnalyzing: StateFlow<Boolean> = _isAnalyzing.asStateFlow()
 
     private val _isSearchingVin = MutableStateFlow(false)
     val isSearchingVin: StateFlow<Boolean> = _isSearchingVin.asStateFlow()
@@ -93,14 +86,13 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // تنظيف استخراج الصورة باستخدام Regex
+    // تنظيف رقم الشاصي المدخل
     private fun cleanExtractedVin(rawVin: String): String {
         var cleanText = rawVin.replace(Regex("\\s+"), "").uppercase()
         cleanText = cleanText.replace("O", "0")
             .replace("Q", "0")
             .replace("I", "1")
         
-        // البحث عن أقوى تطابق لـ 17 حرف ورقم متتالي
         val vinRegex = Regex("[A-HJ-NPR-Z0-9]{17}")
         val match = vinRegex.find(cleanText)
         return match?.value ?: cleanText.filter { it.isLetterOrDigit() }
@@ -142,7 +134,6 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // دالة الاتصال بالـ API الحقيقي (NHTSA)
     private suspend fun fetchCarDetailsFromApi(vin: String): Map<String, String> = withContext(Dispatchers.IO) {
         try {
             val url = URL("https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/$vin?format=json")
@@ -168,51 +159,6 @@ class MainViewModel @Inject constructor(
             e.printStackTrace()
         }
         return@withContext emptyMap()
-    }
-
-    fun analyzeVinImageFromBitmap(
-        bitmap: Bitmap,
-        onSuccess: (brand: String, model: String, year: String, madeIn: String, vin: String) -> Unit,
-        onError: (String) -> Unit
-    ) {
-        viewModelScope.launch {
-            _isAnalyzing.value = true
-            try {
-                val image = InputImage.fromBitmap(bitmap, 0)
-                val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-
-                recognizer.process(image)
-                    .addOnSuccessListener { visionText ->
-                        val cleanLines = visionText.textBlocks.flatMap { it.lines }.map { cleanExtractedVin(it.text) }
-                        // أولوية للكلمات التي طولها 17 حرفاً تماماً
-                        val foundVin = cleanLines.find { it.length == 17 } ?: cleanLines.maxByOrNull { it.length } ?: ""
-
-                        if (foundVin.isNotEmpty()) {
-                            viewModelScope.launch {
-                                // جلب البيانات من الإنترنت فور استخراج الرقم من الصورة
-                                val apiData = fetchCarDetailsFromApi(foundVin)
-                                val autoCountry = getManufactureCountryFromVin(foundVin)
-                                val finalBrand = apiData["brand"].takeIf { !it.isNullOrEmpty() } ?: getBrandFromVin(foundVin)
-                                val finalModel = apiData["model"] ?: ""
-                                val finalYear = apiData["year"] ?: ""
-
-                                onSuccess(finalBrand, finalModel, finalYear, autoCountry, foundVin)
-                                _isAnalyzing.value = false
-                            }
-                        } else {
-                            onError("لم يتم العثور على رقم شاصي واضح في الصورة. يرجى التقاط صورة أوضح.")
-                            _isAnalyzing.value = false
-                        }
-                    }
-                    .addOnFailureListener { e ->
-                        onError("فشل في تحليل الصورة: ${e.message}")
-                        _isAnalyzing.value = false
-                    }
-            } catch (e: Exception) {
-                onError("حدث خطأ غير متوقع: ${e.message}")
-                _isAnalyzing.value = false
-            }
-        }
     }
 
     fun searchByVin(
