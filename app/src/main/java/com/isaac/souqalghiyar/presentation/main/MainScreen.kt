@@ -1,14 +1,11 @@
 package com.isaac.souqalghiyar.presentation.main
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
+import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -29,14 +26,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -86,7 +86,6 @@ fun MainScreen(
     val currentUser by viewModel.currentUser.collectAsState()
     val adsList by viewModel.adsList.collectAsState()
     val brandsList by viewModel.brandsList.collectAsState()
-    val isAnalyzing by viewModel.isAnalyzing.collectAsState()
     val isSearchingVin by viewModel.isSearchingVin.collectAsState()
     val isLoadingData by viewModel.isLoadingData.collectAsState()
     val hasPendingOrders by viewModel.hasPendingOrders.collectAsState()
@@ -105,25 +104,7 @@ fun MainScreen(
     var manufacture by remember { mutableStateOf("") }
     var vinNumber by remember { mutableStateOf("") }
 
-    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-    var selectedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var showAboutDialog by remember { mutableStateOf(false) }
-
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        selectedImageUri = uri
-        if (uri != null) {
-            try {
-                val inputStream = context.contentResolver.openInputStream(uri)
-                selectedBitmap = BitmapFactory.decodeStream(inputStream)
-                inputStream?.close()
-            } catch (e: Exception) {
-                Toast.makeText(context, "فشل في قراءة الصورة", Toast.LENGTH_SHORT).show()
-                selectedBitmap = null
-            }
-        }
-    }
 
     val isRequiredFieldsFilled = brandName.isNotBlank() && vehicleModel.isNotBlank() && vehicleYear.isNotBlank() && manufacture.isNotBlank()
 
@@ -256,42 +237,6 @@ fun MainScreen(
                         }
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
-                    HorizontalDivider(color = SurfaceDark)
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text("لتعبئة الخانات تلقائياً يرجى إرفاق صورة لملصق الشاصي", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = TextGray, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    PhotoPickerBox(
-                        isUploaded = selectedBitmap != null,
-                        onClick = { imagePickerLauncher.launch("image/*") },
-                        onClear = { selectedBitmap = null; selectedImageUri = null }
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    AnalyzeButton(
-                        isImageUploaded = selectedBitmap != null,
-                        isAnalyzing = isAnalyzing,
-                        onClick = {
-                            if (isInternetAvailable(context)) {
-                                selectedBitmap?.let { bitmap ->
-                                    viewModel.analyzeVinImageFromBitmap(
-                                        bitmap = bitmap,
-                                        onSuccess = { brand, model, year, madeIn, vin ->
-                                            brandName = brand; vehicleModel = model; vehicleYear = year; manufacture = madeIn; vinNumber = vin
-                                            Toast.makeText(context, "تم استخراج البيانات بنجاح", Toast.LENGTH_LONG).show()
-                                        },
-                                        onError = { errorMsg -> Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show() }
-                                    )
-                                }
-                            } else {
-                                Toast.makeText(context, "الرجاء التحقق من الإنترنت لتحليل الصورة", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    )
-
                     Spacer(modifier = Modifier.height(40.dp))
 
                     Button(
@@ -338,7 +283,6 @@ fun CarDetailsFields(
     var expandedMadeIn by remember { mutableStateOf(false) }
 
     val yearsList = (2000..2026).map { it.toString() }.reversed()
-    // هنا وضعنا "غير معروف" كأول خيار
     val madeInOptions = listOf("غير معروف", "الولايات المتحدة الأمريكية", "مواصفات خليجي", "اليابان", "المانيا", "كندا")
 
     val defaultTextFieldColors = OutlinedTextFieldDefaults.colors(
@@ -369,7 +313,6 @@ fun CarDetailsFields(
                 }
             }
             ExposedDropdownMenuBox(expanded = expandedMadeIn, onExpandedChange = { expandedMadeIn = !expandedMadeIn }, modifier = Modifier.weight(1f)) {
-                // تم التعديل هنا: readOnly = true و onValueChange فارغة ليصبح إجبارياً ولا يقبل الكتابة اليدوية
                 OutlinedTextField(
                     value = madeIn, 
                     onValueChange = {}, 
@@ -409,57 +352,6 @@ fun CarDetailsFields(
     }
 }
 
-@Composable
-fun PhotoPickerBox(isUploaded: Boolean, onClick: () -> Unit, onClear: () -> Unit) {
-    val borderColor = if (isUploaded) SuccessGreen else TextWhite
-    val bgColor = if (isUploaded) SuccessGreen.copy(alpha = 0.1f) else SurfaceDark.copy(alpha = 0.5f)
-    Box(
-        modifier = Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(16.dp)).background(bgColor).border(1.5.dp, borderColor, RoundedCornerShape(16.dp)).clickable(onClick = onClick, enabled = !isUploaded),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
-            Icon(imageVector = if (isUploaded) Icons.Default.CheckCircle else Icons.Default.PhotoCamera, contentDescription = "الكاميرا", tint = if (isUploaded) SuccessGreen else TextWhite, modifier = Modifier.size(36.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text = if (isUploaded) "تم اختيار الصورة بنجاح" else "انقر لاختيار صورة ملصق الشاصي", color = if (isUploaded) SuccessGreen else TextWhite, fontWeight = if (isUploaded) FontWeight.Bold else FontWeight.Normal, fontSize = 15.sp, textAlign = TextAlign.Center)
-        }
-        if (isUploaded) {
-            IconButton(onClick = onClear, modifier = Modifier.align(Alignment.TopStart).padding(8.dp).background(SurfaceDark.copy(alpha = 0.8f), CircleShape).size(32.dp)) {
-                Icon(Icons.Default.Delete, contentDescription = "حذف الصورة", tint = PrimaryRed, modifier = Modifier.size(20.dp))
-            }
-        }
-    }
-}
-
-@Composable
-fun AnalyzeButton(isImageUploaded: Boolean, isAnalyzing: Boolean, onClick: () -> Unit) {
-    val context = LocalContext.current
-    Button(
-        onClick = {
-            if (!isImageUploaded) Toast.makeText(context, "يرجى اختيار صورة ملصق الشاصي أولاً", Toast.LENGTH_SHORT).show()
-            else onClick()
-        },
-        modifier = Modifier.fillMaxWidth().height(55.dp),
-        shape = RoundedCornerShape(14.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-        contentPadding = PaddingValues()
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize().background(Brush.horizontalGradient(colors = listOf(PrimaryRed, Color(0xFF8E0000))), shape = RoundedCornerShape(14.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            if (isAnalyzing) {
-                CircularProgressIndicator(color = TextWhite, modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = TextWhite, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("استخراج البيانات من الصورة", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextWhite)
-                }
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AnimatedAdsCard(ads: List<Advertisement>) {
@@ -472,6 +364,7 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
         return
     }
 
+    val context = LocalContext.current
     val pagerState = rememberPagerState(pageCount = { ads.size })
 
     LaunchedEffect(pagerState) {
@@ -484,16 +377,72 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
         }
     }
 
-    Card(modifier = Modifier.fillMaxWidth().height(140.dp).border(1.dp, SurfaceDark, RoundedCornerShape(20.dp)), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.Black)) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(140.dp)
+            .border(1.dp, SurfaceDark, RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Black)
+    ) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-            Box(modifier = Modifier.fillMaxSize()) {
-                AsyncImage(model = ads[page].image_url, contentDescription = "الإعلان", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)))))
-                Column(modifier = Modifier.fillMaxSize().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
-                    Text(text = ads[page].title, textAlign = TextAlign.Center, color = TextWhite, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, lineHeight = 26.sp)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = ads[page].target_url ?: "", textAlign = TextAlign.Center, color = PrimaryRed, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                }
+            val currentAd = ads[page]
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable {
+                        // عند الضغط على الصورة: التحقق من وجود رابط ثم فتحه
+                        val url = currentAd.target_url
+                        if (!url.isNullOrBlank()) {
+                            try {
+                                var finalUrl = url
+                                if (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")) {
+                                    finalUrl = "http://$finalUrl"
+                                }
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(finalUrl))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "لا يمكن فتح الرابط", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+            ) {
+                AsyncImage(
+                    model = currentAd.image_url, 
+                    contentDescription = "الإعلان", 
+                    contentScale = ContentScale.Crop, 
+                    modifier = Modifier.fillMaxSize()
+                )
+                
+                // خلفية تدرج خفيفة من الأعلى لضمان قراءة النص بوضوح
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp)
+                        .align(Alignment.TopCenter)
+                        .background(Brush.verticalGradient(colors = listOf(Color.Black.copy(alpha = 0.8f), Color.Transparent)))
+                )
+
+                // تعديل النص ليصبح في الأعلى، مع تغيير نوع الخط ووزنه وإضافة ظل
+                Text(
+                    text = currentAd.title,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 10.dp, start = 16.dp, end = 16.dp),
+                    textAlign = TextAlign.Center,
+                    color = TextWhite,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = FontFamily.Serif,
+                    fontSize = 18.sp,
+                    style = TextStyle(
+                        shadow = Shadow(
+                            color = Color.Black,
+                            offset = Offset(2f, 2f),
+                            blurRadius = 4f
+                        )
+                    )
+                )
             }
         }
     }
