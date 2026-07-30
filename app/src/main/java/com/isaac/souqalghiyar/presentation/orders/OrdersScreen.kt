@@ -108,7 +108,8 @@ fun OrdersScreen(
                     val filteredOrders = if (selectedTab == 0) {
                         orders.filter {
                             val status = it.order.order_status.trim().lowercase()
-                            status == "pending" || status == "waiting for approval" || status == "waiting for approvel"
+                            // تم إضافة going هنا
+                            status == "pending" || status == "waiting for approval" || status == "waiting for approvel" || status == "going"
                         }
                     } else {
                         orders.filter {
@@ -191,6 +192,7 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                     when (order.order_status.trim().lowercase()) {
                         "pending" -> Pair("قيد المراجعة", Color(0xFFFFB300))
                         "waiting for approval", "waiting for approvel" -> Pair("بانتظار موافقتك", Color(0xFF66BB6A))
+                        "going" -> Pair("جاري التوصيل", Color(0xFF29B6F6)) // الإضافة هنا
                         "completed" -> Pair("مكتمل", Color(0xFF42A5F5)) 
                         "canceled" -> Pair("مرفوض", PrimaryRed) 
                         else -> Pair(order.order_status, TextGray)
@@ -335,8 +337,8 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                                             if (notesText.isBlank()) {
                                                 Toast.makeText(localContext, "يرجى تعبئة الملاحظات", Toast.LENGTH_SHORT).show()
                                             } else {
-                                                // التعديل هنا: تمرير order.user_id
-                                                viewModel.updateStatus(order.order_id, order.user_id, "completed", approvalNotes = notesText, disapprovalNotes = "")
+                                                // التعديل هنا: تمرير order_number وتحويل الحالة لـ going
+                                                viewModel.updateStatus(order.order_id, order.user_id, order.order_number, "going", approvalNotes = notesText, disapprovalNotes = "")
                                             }
                                         },
                                         modifier = Modifier.weight(1f),
@@ -388,8 +390,8 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                                             if (notesText.isBlank()) {
                                                 Toast.makeText(localContext, "يرجى كتابة سبب عدم الموافقة", Toast.LENGTH_SHORT).show()
                                             } else {
-                                                // التعديل هنا: تمرير order.user_id
-                                                viewModel.updateStatus(order.order_id, order.user_id, "canceled", approvalNotes = "", disapprovalNotes = notesText)
+                                                // التعديل هنا: تمرير order_number
+                                                viewModel.updateStatus(order.order_id, order.user_id, order.order_number, "canceled", approvalNotes = "", disapprovalNotes = notesText)
                                             }
                                         },
                                         modifier = Modifier.weight(1f),
