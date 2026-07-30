@@ -392,7 +392,6 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
                 modifier = Modifier
                     .fillMaxSize()
                     .clickable {
-                        // عند الضغط على الصورة: التحقق من وجود رابط ثم فتحه
                         val url = currentAd.target_url
                         if (!url.isNullOrBlank()) {
                             try {
@@ -415,7 +414,6 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
                     modifier = Modifier.fillMaxSize()
                 )
                 
-                // خلفية تدرج خفيفة من الأعلى لضمان قراءة النص بوضوح
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -424,7 +422,6 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
                         .background(Brush.verticalGradient(colors = listOf(Color.Black.copy(alpha = 0.8f), Color.Transparent)))
                 )
 
-                // تعديل النص ليصبح في الأعلى، مع تغيير نوع الخط ووزنه وإضافة ظل
                 Text(
                     text = currentAd.title,
                     modifier = Modifier
@@ -450,46 +447,95 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
 
 @Composable
 fun AboutSystemDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق", color = PrimaryRed, fontWeight = FontWeight.Bold, fontSize = 16.sp) } },
         containerColor = SurfaceDark,
         shape = RoundedCornerShape(20.dp),
         text = {
-            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-                Surface(modifier = Modifier.size(90.dp).shadow(10.dp, CircleShape, spotColor = PrimaryRed), shape = CircleShape, color = DarkBackground) {
-                    Image(painter = painterResource(id = R.drawable.logo3), contentDescription = "الشعار", modifier = Modifier.padding(12.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .size(90.dp)
+                        .shadow(10.dp, CircleShape, spotColor = PrimaryRed),
+                    shape = CircleShape,
+                    color = DarkBackground
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.logo3),
+                        contentDescription = "الشعار",
+                        modifier = Modifier.padding(12.dp)
+                    )
                 }
                 Spacer(modifier = Modifier.height(20.dp))
                 Text(text = "خدمة العملاء", fontWeight = FontWeight.Bold, color = PrimaryRed, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-                    Icon(Icons.Default.Call, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
+                
+                // أولاً: اتصال برقم الهاتف
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(vertical = 4.dp)
+                        .clickable {
+                            try {
+                                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:+967777979719"))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "تعذر فتح تطبيق الاتصال", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                ) {
+                    Icon(Icons.Default.Call, contentDescription = "اتصال", tint = PrimaryRed, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("+967-777979719", color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(18.dp))
+
+                // ثانياً: الانتقال إلى الواتساب
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(vertical = 4.dp)
+                        .clickable {
+                            try {
+                                val url = "https://api.whatsapp.com/send?phone=967736373788"
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "تعذر فتح تطبيق الواتساب", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                ) {
+                    Icon(Icons.Default.Chat, contentDescription = "واتساب", tint = Color(0xFF25D366), modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("+967-736373788", color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
+
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                     Icon(Icons.Default.Email, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("ishaq.amjid@gmail.com", color = TextWhite, fontSize = 14.sp)
                 }
+
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                     Icon(Icons.Default.LocationOn, contentDescription = null, tint = PrimaryRed, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("اليمن - صنعاء", color = TextWhite, fontSize = 15.sp)
                 }
+
                 Spacer(modifier = Modifier.height(20.dp))
                 HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
                 Spacer(modifier = Modifier.height(15.dp))
                 Text(text = "حول النظام", fontWeight = FontWeight.ExtraBold, color = PrimaryRed, fontSize = 18.sp, textAlign = TextAlign.Center)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "سوق الغيار خدمه تابعه لشركه الحبيب للتجاره العامه  وهو تطبيق لشراء قطع غيار لجميع انواع المركباتفي اليمن وتوصيلها اليك . حيث يمكنك اضافه القطع التي تود شرائها بكل مواصفاتها ثم يتم ارسال فاتوره عرض سعر للموافقه عليها ثم يتم توصيلها اليك  تدعم الخدمه تسديد الفاتوره عند الاستلام لكسب ثقه العميل وايضا فحص القطعه قبل الاستلام والتأكد من مطابقه مواصفات الطلب .",
+                    text = "تطبيق سوق الغيار هو اول تطبيق في اليمن الذي يوفر شراء قطع غيار لجميع انواع المركبات فى اليمن وتوصيلها اليك ، حيث يمكنك اضافه القطع التي تود شرائها بكل مواصفاتها ثم يتم ارسال فاتوره عرض سعر للموافقه عليها ثم يتم توصيلها اليك تدعم الخدمه تسديد الفاتوره عند الاستلام لكسب ثقه العميل وايضا فحص القطعه قبل الاستلام والتأكد من مطابقه مواصفات الطلب .",
                     color = TextGray, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 22.sp
                 )
             }
