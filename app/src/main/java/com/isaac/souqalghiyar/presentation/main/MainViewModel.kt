@@ -86,7 +86,6 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // تنظيف رقم الشاصي المدخل
     private fun cleanExtractedVin(rawVin: String): String {
         var cleanText = rawVin.replace(Regex("\\s+"), "").uppercase()
         cleanText = cleanText.replace("O", "0")
@@ -172,7 +171,6 @@ class MainViewModel @Inject constructor(
                 val cleanVin = cleanExtractedVin(vin)
                 if (cleanVin.length < 10) throw Exception("رقم الشاصي قصير جداً للبحث")
                 
-                // البحث في API الحقيقي
                 val apiData = fetchCarDetailsFromApi(cleanVin)
                 val autoCountry = getManufactureCountryFromVin(cleanVin)
                 
