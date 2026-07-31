@@ -30,30 +30,39 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val title = remoteMessage.data["title"] ?: remoteMessage.notification?.title ?: "سوق الغيار"
         val message = remoteMessage.data["message"] ?: remoteMessage.notification?.body ?: "لديك إشعار جديد"
 
-        showNotification(title, message)
+        // استخراج رقم الطلب إذا كان مبعوثاً من السيرفر (Cloud Functions)
+        val orderNumber = remoteMessage.data["order_number"] ?: ""
+
+        showNotification(title, message, orderNumber)
     }
 
-    private fun showNotification(title: String, message: String) {
+    private fun showNotification(title: String, message: String, orderNumber: String) {
+        // تجهيز الـ Intent للانتقال إلى MainActivity عند الضغط على الإشعار
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            // تمرير رقم الطلب لكي نتمكن لاحقاً من فتح شاشة الطلبات وتحديد الطلب
+            putExtra("order_number", orderNumber)
         }
 
+        // استخدام UPDATE_CURRENT لضمان تحديث البيانات (رقم الطلب) في الـ Intent
         val pendingIntent = PendingIntent.getActivity(
             this,
-            0,
+            System.currentTimeMillis().toInt(), // جعل كل إشعار مستقلاً
             intent,
-            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val channelId = "client_notifications_channel"
 
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.drawable.logo3) // تأكد من اسم الشعار هنا
+            // ⚠️ ملاحظة: يُفضل أن تكون الأيقونة بخلفية شفافة (PNG) باللون الأبيض
+            .setSmallIcon(R.drawable.logo3)
             .setContentTitle(title)
             .setContentText(message)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setDefaults(NotificationCompat.DEFAULT_ALL) // لضمان إصدار صوت واهتزاز
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -70,6 +79,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             notificationManager.createNotificationChannel(channel)
         }
 
+        // عرض الإشعار برقم تعريفي فريد لكي لا يمسح الإشعار الذي قبله
         val notificationId = System.currentTimeMillis().toInt()
         notificationManager.notify(notificationId, notificationBuilder.build())
     }
