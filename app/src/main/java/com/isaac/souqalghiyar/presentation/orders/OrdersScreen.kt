@@ -3,7 +3,6 @@ package com.isaac.souqalghiyar.presentation.orders
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -57,6 +56,13 @@ fun OrdersScreen(
         viewModel.fetchUserOrders(userId)
     }
 
+    // استدعاء دالة مسح الإشعارات المكتملة عند الانتقال للتاب الثاني (الطلبات السابقة)
+    LaunchedEffect(selectedTab, orders) {
+        if (selectedTab == 1 && orders.isNotEmpty()) {
+            viewModel.clearCompletedOrderAlarms(userId, orders)
+        }
+    }
+
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Scaffold(
             topBar = {
@@ -108,7 +114,6 @@ fun OrdersScreen(
                     val filteredOrders = if (selectedTab == 0) {
                         orders.filter {
                             val status = it.order.order_status.trim().lowercase()
-                            // تم إضافة going هنا
                             status == "pending" || status == "waiting for approval" || status == "waiting for approvel" || status == "going"
                         }
                     } else {
@@ -152,7 +157,7 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
     val localContext = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
 
-    var actionState by remember { mutableStateOf("") } 
+    var actionState by remember { mutableStateOf("") }
     var notesText by remember { mutableStateOf("") }
 
     val itemsTotal = items.sumOf { it.selling_price * it.quantity }
@@ -192,9 +197,9 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                     when (order.order_status.trim().lowercase()) {
                         "pending" -> Pair("قيد المراجعة", Color(0xFFFFB300))
                         "waiting for approval", "waiting for approvel" -> Pair("بانتظار موافقتك", Color(0xFF66BB6A))
-                        "going" -> Pair("جاري التوصيل", Color(0xFF29B6F6)) // الإضافة هنا
-                        "completed" -> Pair("مكتمل", Color(0xFF42A5F5)) 
-                        "canceled" -> Pair("مرفوض", PrimaryRed) 
+                        "going" -> Pair("جاري التوصيل", Color(0xFF29B6F6))
+                        "completed" -> Pair("مكتمل", Color(0xFF42A5F5))
+                        "canceled" -> Pair("مرفوض", PrimaryRed)
                         else -> Pair(order.order_status, TextGray)
                     }
                 }
@@ -337,7 +342,6 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                                             if (notesText.isBlank()) {
                                                 Toast.makeText(localContext, "يرجى تعبئة الملاحظات", Toast.LENGTH_SHORT).show()
                                             } else {
-                                                // التعديل هنا: تمرير order_number وتحويل الحالة لـ going
                                                 viewModel.updateStatus(order.order_id, order.user_id, order.order_number, "going", approvalNotes = notesText, disapprovalNotes = "")
                                             }
                                         },
@@ -390,7 +394,6 @@ fun OrderCard(data: OrderWithItems, viewModel: OrdersViewModel) {
                                             if (notesText.isBlank()) {
                                                 Toast.makeText(localContext, "يرجى كتابة سبب عدم الموافقة", Toast.LENGTH_SHORT).show()
                                             } else {
-                                                // التعديل هنا: تمرير order_number
                                                 viewModel.updateStatus(order.order_id, order.user_id, order.order_number, "canceled", approvalNotes = "", disapprovalNotes = notesText)
                                             }
                                         },

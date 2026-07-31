@@ -63,7 +63,8 @@ fun NotificationsScreen(
                         val indicatorColor = if (alarm.isRead) Color.Transparent else Color(0xFFE53935)
 
                         Card(
-                            modifier = Modifier.fillMaxWidth().clickable { viewModel.markAsRead(alarm.alarm_id) },
+                            // التعديل هنا: الضغط على الكارد يؤدي مباشرة إلى حذف الإشعار (قراءته وإخفائه)
+                            modifier = Modifier.fillMaxWidth().clickable { viewModel.deleteNotification(alarm.alarm_id) },
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = bgColor)
                         ) {

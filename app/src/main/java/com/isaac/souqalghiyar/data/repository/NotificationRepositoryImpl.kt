@@ -12,6 +12,7 @@ import javax.inject.Inject
 class NotificationRepositoryImpl @Inject constructor(
     private val db: FirebaseFirestore
 ) : NotificationRepository {
+
     override fun getUserNotifications(userId: String): Flow<List<user_alarm>> = callbackFlow {
         val sub = db.collection("user_alarm")
             .whereEqualTo("receiver_id", userId)

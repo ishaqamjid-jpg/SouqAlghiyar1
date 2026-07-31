@@ -34,7 +34,7 @@ class OrdersViewModel @Inject constructor(
             return
         }
 
-        fetchJob?.cancel() 
+        fetchJob?.cancel()
         fetchJob = viewModelScope.launch {
             _isLoading.value = true
             orderRepository.getUserOrders(userId)
@@ -49,38 +49,78 @@ class OrdersViewModel @Inject constructor(
         }
     }
 
-    // تم إضافة orderNumber لمعرفة رقم الطلب للاشعارات
-    fun updateStatus(orderId: String, userId: String, orderNumber: Long, newStatus: String, approvalNotes: String = "", disapprovalNotes: String = "") {
+    // دالة جديدة: تقوم بمسح الإشعارات الخاصة بالطلبات المكتملة عند دخول المستخدم لقسم الطلبات السابقة
+    fun clearCompletedOrderAlarms(userId: String, orders: List<OrderWithItems>) {
         viewModelScope.launch {
-            // تحديث حالة الطلب
-            orderRepository.updateOrderStatus(orderId, newStatus, approvalNotes, disapprovalNotes)
-            
-            // إذا قام العميل برفض الفاتورة، نزيد عداد الرفض في حسابه
-            if (newStatus == "canceled") {
-                orderRepository.incrementUserRejections(userId)
-            }
-            
             try {
                 val db = FirebaseFirestore.getInstance()
-                
-                // مسح إشعار المستخدم (المتعلق بطلب الموافقة) بعد اتخاذ القرار
+                // نأخذ فقط أرقام الطلبات المكتملة
+                val completedOrderNumbers = orders
+                    .filter { it.order.order_status.trim().lowercase() == "completed" }
+                    .map { it.order.order_number }
+
+                if (completedOrderNumbers.isEmpty()) return@launch
+
+                // البحث عن الإشعارات التي تخص هذا المستخدم
+                val userAlarms = db.collection("user_alarm")
+                    .whereEqualTo("receiver_id", userId)
+                    .get().await()
+
+                // المرور على الإشعارات ومسح ما يطابق أرقام الطلبات المكتملة
+                for (doc in userAlarms.documents) {
+                    val alarmOrderNumber = doc.getLong("order_number")
+                    if (alarmOrderNumber != null && completedOrderNumbers.contains(alarmOrderNumber)) {
+                        doc.reference.delete().await()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun updateStatus(orderId: String, userId: String, orderNumber: Long, newStatus: String, approvalNotes: String = "", disapprovalNotes: String = "") {
+        viewModelScope.launch {
+            try {
+                // 1. تحديث حالة الطلب
+                orderRepository.updateOrderStatus(orderId, newStatus, approvalNotes, disapprovalNotes)
+
+                // 2. إذا قام العميل برفض الفاتورة، نزيد عداد الرفض في حسابه
+                if (newStatus == "canceled") {
+                    orderRepository.incrementUserRejections(userId)
+                }
+
+                val db = FirebaseFirestore.getInstance()
+
+                // 3. مسح إشعار المستخدم (المتعلق بطلب الموافقة) بعد اتخاذه للقرار
                 val userAlarms = db.collection("user_alarm").whereEqualTo("order_number", orderNumber).get().await()
                 for (doc in userAlarms.documents) {
                     doc.reference.delete().await()
                 }
 
-                // في حالة الموافقة نرسل إشعار للإدارة بأن الطلب جاري التوصيل
+                // 4. إرسال إشعار للإدارة (في تطبيق الداش بورد) بناءً على رد العميل
+                val adminAlarmRef = db.collection("admin_alarm").document()
+
                 if (newStatus == "going") {
-                    val adminAlarmRef = db.collection("admin_alarm").document()
                     adminAlarmRef.set(hashMapOf(
                         "alarm_id" to adminAlarmRef.id,
                         "date" to com.google.firebase.Timestamp.now(),
                         "order_number" to orderNumber,
-                        "title" to "جاري التوصيل",
-                        "message" to "الطلب رقم $orderNumber في انتظار التوصيل",
+                        "title" to "طلب بانتظار التوصيل \uD83D\uDE9A",
+                        "message" to "تمت موافقة العميل على الفاتورة للطلب رقم $orderNumber، بانتظار التوصيل.",
+                        "isRead" to false
+                    )).await()
+                } else if (newStatus == "canceled") {
+                    adminAlarmRef.set(hashMapOf(
+                        "alarm_id" to adminAlarmRef.id,
+                        "date" to com.google.firebase.Timestamp.now(),
+                        "order_number" to orderNumber,
+                        "title" to "تم رفض التسعيرة \u274C",
+                        "message" to "قام العميل برفض التسعيرة للطلب رقم $orderNumber.",
                         "isRead" to false
                     )).await()
                 }
+
             } catch (e: Exception) {
                 e.printStackTrace()
             }

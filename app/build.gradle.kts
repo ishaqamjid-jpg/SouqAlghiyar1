@@ -5,7 +5,6 @@ plugins {
     id("com.google.dagger.hilt.android")
     id("com.google.gms.google-services")
     id("kotlin-kapt")
-
 }
 
 android {
@@ -24,7 +23,9 @@ android {
 
     buildTypes {
         release {
+            // تم التعديل والإضافة هنا
             isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
