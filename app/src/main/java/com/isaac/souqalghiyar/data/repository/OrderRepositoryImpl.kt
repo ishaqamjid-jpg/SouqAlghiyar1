@@ -21,9 +21,6 @@ class OrderRepositoryImpl @Inject constructor(
 
     override suspend fun submitOrderWithItems(order: Order, items: List<OrderItem>): Result<Unit> {
         return try {
-            val adminsSnapshot = db.collection("UserEmp").whereEqualTo("status", "active").get().await()
-            val adminTokensList = adminsSnapshot.documents.mapNotNull { it.getString("fcm_token") }.filter { it.isNotEmpty() }
-
             val counterRef = db.collection("counters").document("orders")
             val orderRef = db.collection("orders").document()
 
@@ -47,33 +44,19 @@ class OrderRepositoryImpl @Inject constructor(
                     transaction.set(itemRef, finalItem)
                 }
 
-                if (adminTokensList.isNotEmpty()) {
-                    adminTokensList.forEach { token ->
-                        val adminAlarmRef = db.collection("admin_alarm").document()
-                        val adminAlarmData = admin_alarm(
-                            alarm_id = adminAlarmRef.id,
-                            date = com.google.firebase.Timestamp.now(),
-                            order_number = newOrderNumber,
-                            title = "طلب تسعيرة جديد",
-                            message = "قام العميل بطلب فاتورة عرض سعر جديدة برقم $newOrderNumber",
-                            fcm_token = token,
-                            isRead = false
-                        )
-                        transaction.set(adminAlarmRef, adminAlarmData)
-                    }
-                } else {
-                    val adminAlarmRef = db.collection("admin_alarm").document()
-                    val adminAlarmData = admin_alarm(
-                        alarm_id = adminAlarmRef.id,
-                        date = com.google.firebase.Timestamp.now(),
-                        order_number = newOrderNumber,
-                        title = "طلب تسعيرة جديد",
-                        message = "قام العميل بطلب فاتورة عرض سعر جديدة برقم $newOrderNumber",
-                        fcm_token = "",
-                        isRead = false
-                    )
-                    transaction.set(adminAlarmRef, adminAlarmData)
-                }
+                // 🌟 التعديل الجوهري: إنشاء إشعار واحد فقط دون البحث عن المدراء 🌟
+                val adminAlarmRef = db.collection("admin_alarm").document()
+                val adminAlarmData = admin_alarm(
+                    alarm_id = adminAlarmRef.id,
+                    date = com.google.firebase.Timestamp.now(),
+                    order_number = newOrderNumber,
+                    title = "طلب تسعيرة جديد",
+                    message = "قام العميل بطلب فاتورة عرض سعر جديدة برقم $newOrderNumber",
+                    fcm_token = "", // السيرفر سيرسله للمجموعة المشتركة تلقائياً
+                    isRead = false
+                )
+                transaction.set(adminAlarmRef, adminAlarmData)
+                
                 true
             }.await()
             Result.success(Unit)
@@ -151,7 +134,6 @@ class OrderRepositoryImpl @Inject constructor(
         awaitClose { subscription.remove() }
     }
 
-    // ------------- التعديل الجوهري هنا -------------
     override suspend fun updateOrderStatus(
         orderId: String,
         newStatus: String,
@@ -178,40 +160,22 @@ class OrderRepositoryImpl @Inject constructor(
             }
 
             // 4. إنشاء إشعار للإدارة بقرار العميل (في حال الرفض أو القبول)
-            if (newStatus == "canceled" || newStatus == "completed") {
-                val adminsSnapshot = db.collection("UserEmp").whereEqualTo("status", "active").get().await()
-                val adminTokensList = adminsSnapshot.documents.mapNotNull { it.getString("fcm_token") }.filter { it.isNotEmpty() }
-
+            if (newStatus == "canceled" || newStatus == "completed" || newStatus == "going") {
                 val title = if (newStatus == "canceled") "طلب مرفوض" else "طلب مكتمل"
                 val message = if (newStatus == "canceled") "قام العميل برفض الفاتورة للطلب رقم $orderNumber" else "قام العميل بالموافقة على الفاتورة للطلب رقم $orderNumber"
 
-                if (adminTokensList.isNotEmpty()) {
-                    adminTokensList.forEach { token ->
-                        val adminAlarmRef = db.collection("admin_alarm").document()
-                        val adminAlarmData = admin_alarm(
-                            alarm_id = adminAlarmRef.id,
-                            date = com.google.firebase.Timestamp.now(),
-                            order_number = orderNumber,
-                            title = title,
-                            message = message,
-                            fcm_token = token,
-                            isRead = false
-                        )
-                        adminAlarmRef.set(adminAlarmData).await()
-                    }
-                } else {
-                    val adminAlarmRef = db.collection("admin_alarm").document()
-                    val adminAlarmData = admin_alarm(
-                        alarm_id = adminAlarmRef.id,
-                        date = com.google.firebase.Timestamp.now(),
-                        order_number = orderNumber,
-                        title = title,
-                        message = message,
-                        fcm_token = "",
-                        isRead = false
-                    )
-                    adminAlarmRef.set(adminAlarmData).await()
-                }
+                // 🌟 التعديل الجوهري: إنشاء إشعار واحد فقط للإدارة
+                val adminAlarmRef = db.collection("admin_alarm").document()
+                val adminAlarmData = admin_alarm(
+                    alarm_id = adminAlarmRef.id,
+                    date = com.google.firebase.Timestamp.now(),
+                    order_number = orderNumber,
+                    title = title,
+                    message = message,
+                    fcm_token = "", // السيرفر سيرسله للمجموعة تلقائياً
+                    isRead = false
+                )
+                db.collection("admin_alarm").document(adminAlarmRef.id).set(adminAlarmData).await()
             }
 
             Result.success(Unit)
