@@ -342,9 +342,17 @@ fun CarDetailsFields(
             trailingIcon = {
                 if (isSearchingVin) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), color = PrimaryRed, strokeWidth = 2.dp)
-                } else if (vin.isNotEmpty()) {
-                    IconButton(onClick = { onSearchVin(vin) }) {
-                        Icon(Icons.Default.Search, contentDescription = "بحث", tint = PrimaryRed)
+                } else {
+                    val isVinValid = vin.trim().length == 17
+                    IconButton(
+                        onClick = { if (isVinValid) onSearchVin(vin) },
+                        enabled = isVinValid
+                    ) {
+                        Icon(
+                            Icons.Default.Search, 
+                            contentDescription = "بحث", 
+                            tint = if (isVinValid) PrimaryRed else Color.Gray.copy(alpha = 0.5f)
+                        )
                     }
                 }
             }
@@ -478,7 +486,6 @@ fun AboutSystemDialog(onDismiss: () -> Unit) {
                 Text(text = "خدمة العملاء", fontWeight = FontWeight.Bold, color = PrimaryRed, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(10.dp))
                 
-                // أولاً: اتصال برقم الهاتف
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -497,7 +504,6 @@ fun AboutSystemDialog(onDismiss: () -> Unit) {
                     Text("+967-777979719", color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
 
-                // ثانياً: الانتقال إلى الواتساب
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
