@@ -124,7 +124,7 @@ fun MainScreen(
         Scaffold(
             topBar = {
                 CenterAlignedTopAppBar(
-                    title = { Text("سوق الغيار", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp) },
+                    title = { Text("سوق الغيار  - لشراء جميع قطع الغيار ", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp) },
                     navigationIcon = {
                         IconButton(onClick = { navigateToNotifications(userId) }) {
                             BadgedBox(
