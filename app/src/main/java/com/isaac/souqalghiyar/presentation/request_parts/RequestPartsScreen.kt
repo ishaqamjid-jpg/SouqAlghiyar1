@@ -368,7 +368,7 @@ fun RequestPartsScreen(
                             CircularProgressIndicator(color = TextWhite, modifier = Modifier.size(24.dp))
                         } else {
                             Text(
-                                "تأكيد وطلب الفاتورة",
+                                "طلب فاتورة عرض سعر ",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isFormValid) TextWhite else TextGray
