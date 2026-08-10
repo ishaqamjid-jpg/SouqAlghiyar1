@@ -124,7 +124,7 @@ fun MainScreen(
         Scaffold(
             topBar = {
                 CenterAlignedTopAppBar(
-                    title = { Text("سوق الغيار  - لشراء جميع قطع الغيار ", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp) },
+                    title = { Text("سوق الغيار  - لشراء جميع قطع الغيار ", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp) },
                     navigationIcon = {
                         IconButton(onClick = { navigateToNotifications(userId) }) {
                             BadgedBox(
@@ -283,7 +283,7 @@ fun CarDetailsFields(
     var expandedMadeIn by remember { mutableStateOf(false) }
 
     val yearsList = (2000..2026).map { it.toString() }.reversed()
-    val madeInOptions = listOf("غير معروف", "الولايات المتحدة الأمريكية", "مواصفات خليجي", "اليابان", "المانيا", "كندا")
+    val madeInOptions = listOf("غير معروف", "مواصفات الولايات المتحدة الأمريكية", "مواصفات خليجي", "اليابان", "المانيا", "كندا")
 
     val defaultTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
