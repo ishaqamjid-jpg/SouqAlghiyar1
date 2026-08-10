@@ -31,6 +31,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -63,7 +64,6 @@ fun isInternetAvailable(context: Context): Boolean {
     }
 }
 
-// دالة لتنسيق الوقت (مثلاً 05:00)
 fun formatTimer(seconds: Int): String {
     val min = seconds / 60
     val sec = seconds % 60
@@ -74,6 +74,7 @@ fun formatTimer(seconds: Int): String {
 @Composable
 fun LoginScreen(
     viewModel: LoginViewModel = hiltViewModel(),
+    onOpenPrivacyPolicy: () -> Unit, // دالة فتح السياسة
     navigateToMain: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -102,14 +103,14 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(DarkBackground)
-                .systemBarsPadding() 
+                .systemBarsPadding()
         ) {
             IconButton(
                 onClick = { showAboutDialog = true },
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(16.dp)
-                    .zIndex(1f) 
+                    .zIndex(1f)
             ) {
                 Icon(
                     imageVector = Icons.Default.Info,
@@ -128,13 +129,13 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(Modifier.height(40.dp))
-                
+
                 Image(
                     painter = painterResource(R.drawable.logo3),
                     contentDescription = "الشعار",
                     modifier = Modifier.size(160.dp)
                 )
-                
+
                 Spacer(Modifier.height(15.dp))
                 Text(
                     text = "سوق الغيار",
@@ -156,7 +157,7 @@ fun LoginScreen(
                     cursorColor = PrimaryRed
                 )
 
-                // ------------------ الخطوة الأولى: إدخال الرقم ------------------
+                // الخطوة الأولى: إدخال الرقم
                 AnimatedVisibility(
                     visible = uiState.step == LoginStep.ENTER_PHONE,
                     enter = fadeIn(tween(500)),
@@ -183,7 +184,6 @@ fun LoginScreen(
                             ),
                             shape = RoundedCornerShape(12.dp),
                             colors = customTextFieldColors,
-                            // إضافة مربع رمز الدولة غير القابل للتعديل
                             leadingIcon = {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -196,7 +196,6 @@ fun LoginScreen(
                                         fontSize = 16.sp,
                                         modifier = Modifier.padding(end = 8.dp)
                                     )
-                                    // فاصل عمودي بسيط بين رمز الدولة ورقم الهاتف
                                     Box(
                                         modifier = Modifier
                                             .height(24.dp)
@@ -257,7 +256,7 @@ fun LoginScreen(
                     }
                 }
 
-                // ------------------ الخطوة الثانية: إدخال رمز الـ SMS ------------------
+                // الخطوة الثانية: إدخال الرمز
                 AnimatedVisibility(
                     visible = uiState.step == LoginStep.ENTER_CODE,
                     enter = fadeIn(tween(500)),
@@ -304,7 +303,6 @@ fun LoginScreen(
                                 if (!isInternetAvailable(context)) {
                                     Toast.makeText(context, "لا يوجد اتصال بالإنترنت", Toast.LENGTH_SHORT).show()
                                 } else if (uiState.timer == 0) {
-                                    // إذا انتهى الوقت، نعود لخطوة إدخال الرقم لطلب الكود من جديد
                                     viewModel.resetToPhoneStep()
                                 } else if (!uiState.isLoading) {
                                     viewModel.verifyCode()
@@ -331,7 +329,7 @@ fun LoginScreen(
                     }
                 }
 
-                // ------------------ الخطوة الثالثة: إدخال الاسم (للعملاء الجدد فقط) ------------------
+                // الخطوة الثالثة: إدخال الاسم
                 AnimatedVisibility(
                     visible = uiState.step == LoginStep.ENTER_NAME,
                     enter = fadeIn(tween(500)),
@@ -388,7 +386,6 @@ fun LoginScreen(
                     }
                 }
 
-                // ------------------ رسائل الخطأ ------------------
                 uiState.error?.let {
                     Spacer(Modifier.height(15.dp))
                     Text(
@@ -400,6 +397,32 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+
+                Spacer(Modifier.height(40.dp))
+            }
+
+            // إضافة رابط سياسة الخصوصية بالأسفل
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "بتسجيل الدخول، أنت توافق على",
+                    fontSize = 12.sp,
+                    color = TextGray
+                )
+                Text(
+                    text = "سياسة الخصوصية والاستخدام",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryRed,
+                    textDecoration = TextDecoration.Underline,
+                    modifier = Modifier
+                        .clickable { onOpenPrivacyPolicy() }
+                        .padding(4.dp)
+                )
             }
 
             if (showAboutDialog) {
@@ -409,6 +432,7 @@ fun LoginScreen(
     }
 }
 
+// ... بقية كود AboutSystemDialog كما هو
 @Composable
 private fun AboutSystemDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -444,17 +468,9 @@ private fun AboutSystemDialog(onDismiss: () -> Unit) {
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
-
-                Text(
-                    text = "خدمة العملاء",
-                    fontWeight = FontWeight.Bold,
-                    color = PrimaryRed,
-                    fontSize = 16.sp
-                )
-
+                Text(text = "خدمة العملاء", fontWeight = FontWeight.Bold, color = PrimaryRed, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // أولاً: اتصال برقم الهاتف
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -473,7 +489,6 @@ private fun AboutSystemDialog(onDismiss: () -> Unit) {
                     Text("+967-777979719", color = TextWhite, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
 
-                // ثانياً: الانتقال إلى الواتساب
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -509,22 +524,12 @@ private fun AboutSystemDialog(onDismiss: () -> Unit) {
                 HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
                 Spacer(modifier = Modifier.height(15.dp))
 
-                Text(
-                    text = "حول النظام",
-                    fontWeight = FontWeight.ExtraBold,
-                    color = PrimaryRed,
-                    fontSize = 18.sp,
-                    textAlign = TextAlign.Center
-                )
-
+                Text(text = "حول النظام", fontWeight = FontWeight.ExtraBold, color = PrimaryRed, fontSize = 18.sp, textAlign = TextAlign.Center)
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = "تطبيق سوق الغيار هو اول تطبيق في اليمن الذي يوفر شراء قطع غيار لجميع انواع المركبات فى اليمن وتوصيلها اليك ، حيث يمكنك اضافه القطع التي تود شرائها بكل مواصفاتها ثم يتم ارسال فاتوره عرض سعر للموافقه عليها ثم يتم توصيلها اليك تدعم الخدمه تسديد الفاتوره عند الاستلام لكسب ثقه العميل وايضا فحص القطعه قبل الاستلام والتأكد من مطابقه مواصفات الطلب .",
-                    color = TextGray,
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 22.sp
+                    color = TextGray, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 22.sp
                 )
             }
         }

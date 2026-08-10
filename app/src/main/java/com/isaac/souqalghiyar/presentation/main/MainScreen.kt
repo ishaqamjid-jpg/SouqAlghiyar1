@@ -78,6 +78,7 @@ fun isInternetAvailable(context: Context): Boolean {
 fun MainScreen(
     userId: String,
     viewModel: MainViewModel = hiltViewModel(),
+    onOpenPrivacyPolicy: () -> Unit, // تمت إضافته
     navigateToRequestParts: (String, String, String, String, String) -> Unit,
     navigateToOrders: (String) -> Unit,
     navigateToNotifications: (String) -> Unit,
@@ -124,12 +125,12 @@ fun MainScreen(
         Scaffold(
             topBar = {
                 CenterAlignedTopAppBar(
-                    title = { Text("سوق الغيار  - لشراء جميع قطع الغيار ", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp) },
+                    title = { Text("سوق الغيار", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp) },
                     navigationIcon = {
                         IconButton(onClick = { navigateToNotifications(userId) }) {
                             BadgedBox(
-                                badge = { 
-                                    if (hasUnreadNotifications) Badge(containerColor = PrimaryRed, modifier = Modifier.offset(x = (-4).dp, y = 4.dp)) { Text("!") } 
+                                badge = {
+                                    if (hasUnreadNotifications) Badge(containerColor = PrimaryRed, modifier = Modifier.offset(x = (-4).dp, y = 4.dp)) { Text("!") }
                                 }
                             ) {
                                 Icon(Icons.Default.Notifications, contentDescription = "الإشعارات", tint = TextWhite, modifier = Modifier.size(26.dp))
@@ -137,6 +138,10 @@ fun MainScreen(
                         }
                     },
                     actions = {
+                        // إضافة زر سياسة الخصوصية بجانب تسجيل الخروج
+                        IconButton(onClick = onOpenPrivacyPolicy) {
+                            Icon(Icons.Default.PrivacyTip, contentDescription = "سياسة الخصوصية", tint = TextWhite, modifier = Modifier.size(26.dp))
+                        }
                         IconButton(onClick = navigateToLogin) {
                             Icon(Icons.Default.ExitToApp, contentDescription = "تسجيل خروج", tint = PrimaryRed, modifier = Modifier.size(26.dp))
                         }
@@ -152,11 +157,11 @@ fun MainScreen(
                 NavigationBar(containerColor = SurfaceDark) {
                     NavigationBarItem(
                         selected = false,
-                        onClick = { 
+                        onClick = {
                             if (isInternetAvailable(context)) navigateToOrders(userId)
                             else Toast.makeText(context, "لا يوجد اتصال بالإنترنت", Toast.LENGTH_SHORT).show()
                         },
-                        icon = { 
+                        icon = {
                             BadgedBox(badge = { if (hasPendingOrders) Badge(containerColor = PrimaryRed) }) {
                                 Icon(Icons.Default.ListAlt, contentDescription = "طلباتي")
                             }
@@ -215,7 +220,14 @@ fun MainScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     CarDetailsFields(
-                        brand = brandName, onBrandChange = { brandName = it }, brandsList = brandsList,
+                        brand = brandName,
+                        onBrandChange = { newBrand ->
+                            brandName = newBrand
+                            // تفعيل التعبئة التلقائية هنا
+                            val autoLoc = viewModel.deduceManufacturingLocation(newBrand)
+                            manufacture = autoLoc
+                        },
+                        brandsList = brandsList,
                         model = vehicleModel, onModelChange = { vehicleModel = it },
                         year = vehicleYear, onYearChange = { vehicleYear = it },
                         madeIn = manufacture, onMadeInChange = { manufacture = it },
@@ -242,6 +254,7 @@ fun MainScreen(
                     Button(
                         onClick = {
                             if (isInternetAvailable(context)) {
+                                // تمرير البيانات للراوت بالترتيب الصحيح
                                 navigateToRequestParts(brandName, vehicleModel, vehicleYear, manufacture, vinNumber.ifEmpty { "غير محدد" })
                             } else {
                                 Toast.makeText(context, "الرجاء الاتصال بالإنترنت لإرسال الطلب", Toast.LENGTH_SHORT).show()
@@ -283,7 +296,8 @@ fun CarDetailsFields(
     var expandedMadeIn by remember { mutableStateOf(false) }
 
     val yearsList = (2000..2026).map { it.toString() }.reversed()
-    val madeInOptions = listOf("غير معروف", "مواصفات الولايات المتحدة الأمريكية", "مواصفات خليجي", "اليابان", "المانيا", "كندا")
+    // تم إضافة الخيارات الخليجية والأمريكية المطلوبة هنا
+    val madeInOptions = listOf("اليابان مواصفات خليجي", "اليابان مواصفات امريكي", "ألمانيا", "أمريكا", "كوريا الجنوبية", "الصين", "فرنسا", "إيطاليا", "بريطانيا", "غير معروف")
 
     val defaultTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
@@ -314,13 +328,13 @@ fun CarDetailsFields(
             }
             ExposedDropdownMenuBox(expanded = expandedMadeIn, onExpandedChange = { expandedMadeIn = !expandedMadeIn }, modifier = Modifier.weight(1f)) {
                 OutlinedTextField(
-                    value = madeIn, 
-                    onValueChange = {}, 
-                    readOnly = true, 
-                    label = { Text("مكان التصنيع *") }, 
-                    modifier = Modifier.menuAnchor().fillMaxWidth(), 
-                    colors = defaultTextFieldColors, 
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMadeIn) }, 
+                    value = madeIn,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("مكان التصنيع *") },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    colors = defaultTextFieldColors,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMadeIn) },
                     shape = RoundedCornerShape(12.dp)
                 )
                 ExposedDropdownMenu(expanded = expandedMadeIn, onDismissRequest = { expandedMadeIn = false }, modifier = Modifier.background(SurfaceDark)) {
@@ -332,7 +346,7 @@ fun CarDetailsFields(
         OutlinedTextField(
             value = vin,
             onValueChange = onVinChange,
-            label = { Text("رقم القعادة / الشاصي (17 خانة)") },
+            label = { Text("رقم القعادة / الشاصي (اختياري)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             colors = defaultTextFieldColors,
@@ -343,14 +357,14 @@ fun CarDetailsFields(
                 if (isSearchingVin) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), color = PrimaryRed, strokeWidth = 2.dp)
                 } else {
-                    val isVinValid = vin.trim().length == 17
+                    val isVinValid = vin.trim().length >= 10
                     IconButton(
                         onClick = { if (isVinValid) onSearchVin(vin) },
                         enabled = isVinValid
                     ) {
                         Icon(
-                            Icons.Default.Search, 
-                            contentDescription = "بحث", 
+                            Icons.Default.Search,
+                            contentDescription = "بحث",
                             tint = if (isVinValid) PrimaryRed else Color.Gray.copy(alpha = 0.5f)
                         )
                     }
@@ -360,6 +374,7 @@ fun CarDetailsFields(
     }
 }
 
+// ... (بقية مكونات AnimatedAdsCard و AboutSystemDialog كما هي تماماً في كودك)
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AnimatedAdsCard(ads: List<Advertisement>) {
@@ -395,7 +410,7 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
     ) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             val currentAd = ads[page]
-            
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -416,12 +431,12 @@ fun AnimatedAdsCard(ads: List<Advertisement>) {
                     }
             ) {
                 AsyncImage(
-                    model = currentAd.image_url, 
-                    contentDescription = "الإعلان", 
-                    contentScale = ContentScale.Crop, 
+                    model = currentAd.image_url,
+                    contentDescription = "الإعلان",
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
-                
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -485,7 +500,7 @@ fun AboutSystemDialog(onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(20.dp))
                 Text(text = "خدمة العملاء", fontWeight = FontWeight.Bold, color = PrimaryRed, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(10.dp))
-                
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier

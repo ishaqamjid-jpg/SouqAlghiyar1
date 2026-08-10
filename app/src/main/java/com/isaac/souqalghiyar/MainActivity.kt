@@ -2,8 +2,10 @@ package com.isaac.souqalghiyar
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -32,7 +34,6 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    // حقن نفس النسخة المستخدمة في AuthRepository لضمان مسح البيانات الصحيحة تماماً
     @Inject
     lateinit var sharedPreferences: SharedPreferences
 
@@ -50,6 +51,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // دالة فتح سياسة الخصوصية
+    private fun openPrivacyPolicyWeb() {
+        val url = "https://www.freeprivacypolicy.com/live/3e1984f9-e513-4798-b3f1-94c8e4f8534d"
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        startActivity(intent)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -58,7 +66,6 @@ class MainActivity : ComponentActivity() {
         val isLoggedIn = sharedPreferences.getBoolean("is_logged_in", false)
         val savedUserId = sharedPreferences.getString("user_id", "") ?: ""
 
-        // استخراج توكن الإشعارات وحفظه فور تشغيل التطبيق
         if (isLoggedIn && savedUserId.isNotEmpty()) {
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (task.isSuccessful) {
@@ -83,6 +90,7 @@ class MainActivity : ComponentActivity() {
 
                         composable("login") {
                             LoginScreen(
+                                onOpenPrivacyPolicy = { openPrivacyPolicyWeb() },
                                 navigateToMain = { userId ->
                                     val token = sharedPreferences.getString("fcm_token", "") ?: ""
                                     if (token.isNotEmpty()) {
@@ -102,15 +110,16 @@ class MainActivity : ComponentActivity() {
                             val userId = backStackEntry.arguments?.getString("userId") ?: ""
                             MainScreen(
                                 userId = userId,
-                                navigateToRequestParts = { brandName, vehicleName, vehicleModel, manufacture, vinNumber ->
+                                onOpenPrivacyPolicy = { openPrivacyPolicyWeb() },
+                                navigateToRequestParts = { brandName, model, year, manufacture, vinNumber ->
                                     val safeVin = vinNumber.ifBlank { "غير_محدد" }.replace("/", "-")
                                     val safeBrand = brandName.ifBlank { "غير_محدد" }.replace("/", "-")
-                                    val safeName = vehicleName.ifBlank { "غير_محدد" }.replace("/", "-")
-                                    val safeModel = vehicleModel.ifBlank { "غير_محدد" }.replace("/", "-")
+                                    val safeModel = model.ifBlank { "غير_محدد" }.replace("/", "-")
+                                    val safeYear = year.ifBlank { "غير_محدد" }.replace("/", "-")
                                     val safeManuf = manufacture.ifBlank { "غير_محدد" }.replace("/", "-")
                                     val safeUserId = userId.ifBlank { "unknown_user" }
 
-                                    navController.navigate("request_parts/$safeUserId/$safeBrand/$safeName/$safeModel/$safeManuf/$safeVin")
+                                    navController.navigate("request_parts/$safeUserId/$safeBrand/$safeModel/$safeYear/$safeManuf/$safeVin")
                                 },
                                 navigateToOrders = { passedUserId ->
                                     val safeId = passedUserId.ifBlank { "unknown_user" }
@@ -125,11 +134,7 @@ class MainActivity : ComponentActivity() {
                                         FirebaseFirestore.getInstance().collection("users").document(userId)
                                             .update("fcm_token", "")
                                     }
-
-                                    // مسح الجلسة بشكل صحيح ومضمون
                                     sharedPreferences.edit().clear().apply()
-                                    
-                                    // الطريقة الصارمة والمضمونة لمسح كافة مكدس الشاشات 100%
                                     navController.navigate("login") {
                                         popUpTo(0) { inclusive = true }
                                         launchSingleTop = true
@@ -138,19 +143,20 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        composable("request_parts/{userId}/{brandName}/{vehicleName}/{vehicleModel}/{manufacture}/{vinNumber}") { backStackEntry ->
+                        // تم تصحيح ترتيب المتغيرات هنا لتطابق الطلب
+                        composable("request_parts/{userId}/{brandName}/{model}/{year}/{manufacture}/{vinNumber}") { backStackEntry ->
                             val userId = backStackEntry.arguments?.getString("userId")?.replace("unknown_user", "") ?: ""
                             val brandName = backStackEntry.arguments?.getString("brandName")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
-                            val vehicleName = backStackEntry.arguments?.getString("vehicleName")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
-                            val vehicleModel = backStackEntry.arguments?.getString("vehicleModel")?.replace("vehicleName", "")?.replace("-", "/") ?: ""
+                            val model = backStackEntry.arguments?.getString("model")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
+                            val year = backStackEntry.arguments?.getString("year")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
                             val manufacture = backStackEntry.arguments?.getString("manufacture")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
                             val vinNumber = backStackEntry.arguments?.getString("vinNumber")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
 
                             RequestPartsScreen(
                                 userId = userId,
                                 brandName = brandName,
-                                vehicleName = vehicleName,
-                                vehicleModel = vehicleModel,
+                                vehicleName = model, // الموديل
+                                vehicleModel = year, // السنة (بناءً على التسميات في كودك القديم)
                                 manufacture = manufacture,
                                 vinNumber = vinNumber,
                                 onNavigateBack = { navController.popBackStack() }

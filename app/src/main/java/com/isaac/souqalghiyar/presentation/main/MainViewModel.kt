@@ -72,7 +72,7 @@ class MainViewModel @Inject constructor(
                 _currentUser.value = user
             }
         }
-        
+
         viewModelScope.launch {
             notificationRepository.getUserNotifications(userId).collect { alarms ->
                 _hasUnreadNotifications.value = alarms.any { !it.isRead }
@@ -82,16 +82,47 @@ class MainViewModel @Inject constructor(
 
     fun checkPendingOrders(userId: String) {
         viewModelScope.launch {
-            _hasPendingOrders.value = true 
+            _hasPendingOrders.value = true
+        }
+    }
+
+    // دالة تحديد مكان التصنيع تلقائياً بناءً على الماركة
+    fun deduceManufacturingLocation(brandName: String): String {
+        val name = brandName.trim().lowercase()
+        return when {
+            // الألماني
+            name.contains("مرسيدس") || name.contains("mercedes") ||
+                    name.contains("بي ام") || name.contains("bmw") ||
+                    name.contains("أودي") || name.contains("audi") ||
+                    name.contains("فولكس") || name.contains("volkswagen") ||
+                    name.contains("بورشه") || name.contains("porsche") -> "ألمانيا"
+
+            // الياباني (تترك فارغة للعميل ليحدد المواصفات)
+            name.contains("تويوتا") || name.contains("toyota") ||
+                    name.contains("لكزس") || name.contains("lexus") ||
+                    name.contains("نيسان") || name.contains("nissan") ||
+                    name.contains("هوندا") || name.contains("honda") ||
+                    name.contains("مازدا") || name.contains("mazda") ||
+                    name.contains("ميتسوبيشي") || name.contains("mitsubishi") -> ""
+
+            // الكوري
+            name.contains("هيونداي") || name.contains("hyundai") ||
+                    name.contains("كيا") || name.contains("kia") -> "كوريا الجنوبية"
+
+            // الأمريكي
+            name.contains("فورد") || name.contains("ford") ||
+                    name.contains("شيفروليه") || name.contains("chevrolet") ||
+                    name.contains("جمس") || name.contains("gmc") ||
+                    name.contains("دودج") || name.contains("dodge") ||
+                    name.contains("جيب") || name.contains("jeep") -> "أمريكا"
+
+            else -> ""
         }
     }
 
     private fun cleanExtractedVin(rawVin: String): String {
         var cleanText = rawVin.replace(Regex("\\s+"), "").uppercase()
-        cleanText = cleanText.replace("O", "0")
-            .replace("Q", "0")
-            .replace("I", "1")
-        
+        cleanText = cleanText.replace("O", "0").replace("Q", "0").replace("I", "1")
         val vinRegex = Regex("[A-HJ-NPR-Z0-9]{17}")
         val match = vinRegex.find(cleanText)
         return match?.value ?: cleanText.filter { it.isLetterOrDigit() }
@@ -100,18 +131,16 @@ class MainViewModel @Inject constructor(
     private fun getManufactureCountryFromVin(vin: String): String {
         if (vin.isEmpty()) return "غير معروف"
         return when (vin.first().uppercaseChar()) {
-            '1', '4', '5' -> "الولايات المتحدة الأمريكية"
+            '1', '4', '5' -> "أمريكا"
             '2' -> "كندا"
             '3' -> "المكسيك"
             'J' -> "اليابان"
             'K' -> "كوريا الجنوبية"
-            'S' -> "المملكة المتحدة (بريطانيا)"
-            'V' -> "فرنسا / إسبانيا"
-            'T' -> "سويسرا"
+            'S' -> "بريطانيا"
             'W' -> "المانيا"
             'Z' -> "إيطاليا"
             'L' -> "الصين"
-            else -> "غير معروف / مواصفات أخرى"
+            else -> "غير معروف"
         }
     }
 
@@ -144,13 +173,13 @@ class MainViewModel @Inject constructor(
                 val response = connection.inputStream.bufferedReader().readText()
                 val jsonObject = JSONObject(response)
                 val resultsArray = jsonObject.optJSONArray("Results")
-                
+
                 if (resultsArray != null && resultsArray.length() > 0) {
                     val carData = resultsArray.getJSONObject(0)
                     val make = carData.optString("Make", "")
                     val model = carData.optString("Model", "")
                     val year = carData.optString("ModelYear", "")
-                    
+
                     return@withContext mapOf("brand" to make, "model" to model, "year" to year)
                 }
             }
@@ -170,10 +199,10 @@ class MainViewModel @Inject constructor(
             try {
                 val cleanVin = cleanExtractedVin(vin)
                 if (cleanVin.length < 10) throw Exception("رقم الشاصي قصير جداً للبحث")
-                
+
                 val apiData = fetchCarDetailsFromApi(cleanVin)
                 val autoCountry = getManufactureCountryFromVin(cleanVin)
-                
+
                 val finalBrand = apiData["brand"].takeIf { !it.isNullOrEmpty() } ?: getBrandFromVin(cleanVin)
                 val finalModel = apiData["model"] ?: ""
                 val finalYear = apiData["year"] ?: ""

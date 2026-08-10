@@ -66,38 +66,33 @@ class LoginViewModel @Inject constructor(
     }
 
     fun onPhoneChange(phone: String) {
-        // السماح فقط بالأرقام ومنع تجاوز 9 أرقام (طول الرقم في اليمن)
         if (phone.all { it.isDigit() } && phone.length <= 9) {
             _phone.value = phone
         }
     }
-    
-    fun onOtpCodeChange(code: String) { 
+
+    fun onOtpCodeChange(code: String) {
         if(code.all { it.isDigit() } && code.length <= 6) {
-             _otpCode.value = code 
+            _otpCode.value = code
         }
     }
     fun onNameChange(name: String) { _name.value = name }
     fun onRememberMeChange(checked: Boolean) { _rememberMe.value = checked }
 
-    // بدء طلب الرمز (OTP)
     fun startPhoneVerification(activity: Activity) {
         val currentPhone = _phone.value.trim()
-        
-        // التحقق من طول الرقم (يجب أن يكون 9 أرقام، مثلاً 777123456)
+
         if (currentPhone.isEmpty() || currentPhone.length < 9) {
             _uiState.value = _uiState.value.copy(error = "يرجى إدخال رقم هاتف صحيح (9 أرقام)")
             return
         }
 
         _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-
-        // دمج رمز الدولة مع الرقم المُدخل ليكون بالصيغة الصحيحة لـ Firebase
         val fullPhoneNumber = "+967$currentPhone"
 
         val options = PhoneAuthOptions.newBuilder(firebaseAuth)
             .setPhoneNumber(fullPhoneNumber)
-            .setTimeout(60L, TimeUnit.SECONDS) // Firebase timeout
+            .setTimeout(60L, TimeUnit.SECONDS)
             .setActivity(activity)
             .setCallbacks(callbacks)
 
@@ -114,7 +109,6 @@ class LoginViewModel @Inject constructor(
         }
 
         override fun onVerificationFailed(e: FirebaseException) {
-            // توضيح رسالة الخطأ الخاصة بالحظر (Too many requests)
             val errorMessage = if (e.message?.contains("blocked all requests") == true || e.message?.contains("too_many_requests") == true) {
                 "تم حظر الطلبات من هذا الجهاز مؤقتاً بسبب المحاولات المتكررة. يرجى المحاولة لاحقاً."
             } else {
@@ -133,7 +127,7 @@ class LoginViewModel @Inject constructor(
 
     private fun startTimer() {
         timerJob?.cancel()
-        _uiState.value = _uiState.value.copy(timer = 300) // 5 دقائق = 300 ثانية
+        _uiState.value = _uiState.value.copy(timer = 300)
         timerJob = viewModelScope.launch {
             while (_uiState.value.timer > 0) {
                 delay(1000)
@@ -142,7 +136,6 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    // التحقق من الرمز الذي أدخله المستخدم
     fun verifyCode() {
         val currentCode = _otpCode.value.trim()
         if (currentCode.isEmpty() || currentCode.length < 6) {
@@ -162,7 +155,6 @@ class LoginViewModel @Inject constructor(
                 val user = authResult.user
                 if (user != null) {
                     val uid = user.uid
-                    // نستخدم الرقم المدمج عند الحفظ
                     val fullPhoneToSave = user.phoneNumber ?: "+967${_phone.value}"
                     checkIfUserExistsAndProceed(uid, fullPhoneToSave)
                 }
@@ -174,17 +166,15 @@ class LoginViewModel @Inject constructor(
 
     private suspend fun checkIfUserExistsAndProceed(uid: String, phoneNumber: String) {
         val existsResult = authRepository.checkUserExistsAndGetName(uid)
-        
+
         existsResult.fold(
             onSuccess = { savedName ->
                 if (!savedName.isNullOrEmpty()) {
-                    // المستخدم مسجل مسبقاً، الدخول مباشرة للرئيسية
                     if (_rememberMe.value) {
                         authRepository.saveSessionLocally(uid, savedName, phoneNumber)
                     }
                     _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true, userId = uid)
                 } else {
-                    // عميل جديد، نطلب منه الاسم
                     _uiState.value = _uiState.value.copy(isLoading = false, step = LoginStep.ENTER_NAME, userId = uid)
                 }
             },
@@ -194,7 +184,6 @@ class LoginViewModel @Inject constructor(
         )
     }
 
-    // حفظ الاسم النهائي للعميل الجديد والتوجه للرئيسية
     fun completeRegistration() {
         val currentName = _name.value.trim()
         val uid = _uiState.value.userId ?: return
