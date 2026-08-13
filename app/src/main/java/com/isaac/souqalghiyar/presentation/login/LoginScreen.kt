@@ -74,13 +74,15 @@ fun formatTimer(seconds: Int): String {
 @Composable
 fun LoginScreen(
     viewModel: LoginViewModel = hiltViewModel(),
-    onOpenPrivacyPolicy: () -> Unit, // دالة فتح السياسة
+    onOpenPrivacyPolicy: () -> Unit,
     navigateToMain: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val phone by viewModel.phone.collectAsState()
     val otpCode by viewModel.otpCode.collectAsState()
-    val name by viewModel.name.collectAsState()
+    val firstName by viewModel.firstName.collectAsState()
+    val fatherName by viewModel.fatherName.collectAsState()
+    val lastName by viewModel.lastName.collectAsState()
     val rememberMe by viewModel.rememberMe.collectAsState()
 
     val focusManager = LocalFocusManager.current
@@ -329,7 +331,7 @@ fun LoginScreen(
                     }
                 }
 
-                // الخطوة الثالثة: إدخال الاسم
+                // الخطوة الثالثة: إدخال الاسم (للعملاء الجدد فقط)
                 AnimatedVisibility(
                     visible = uiState.step == LoginStep.ENTER_NAME,
                     enter = fadeIn(tween(500)),
@@ -345,9 +347,35 @@ fun LoginScreen(
                         )
 
                         OutlinedTextField(
-                            value = name,
-                            onValueChange = viewModel::onNameChange,
-                            label = { Text("الاسم الكامل") },
+                            value = firstName,
+                            onValueChange = viewModel::onFirstNameChange,
+                            label = { Text("الاسم الأول") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = customTextFieldColors
+                        )
+                        
+                        Spacer(Modifier.height(10.dp))
+
+                        OutlinedTextField(
+                            value = fatherName,
+                            onValueChange = viewModel::onFatherNameChange,
+                            label = { Text("اسم الأب") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = customTextFieldColors
+                        )
+
+                        Spacer(Modifier.height(10.dp))
+
+                        OutlinedTextField(
+                            value = lastName,
+                            onValueChange = viewModel::onLastNameChange,
+                            label = { Text("اللقب") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
@@ -401,7 +429,7 @@ fun LoginScreen(
                 Spacer(Modifier.height(40.dp))
             }
 
-            // إضافة رابط سياسة الخصوصية بالأسفل
+            // رابط سياسة الخصوصية بالأسفل
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -432,7 +460,6 @@ fun LoginScreen(
     }
 }
 
-// ... بقية كود AboutSystemDialog كما هو
 @Composable
 private fun AboutSystemDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
