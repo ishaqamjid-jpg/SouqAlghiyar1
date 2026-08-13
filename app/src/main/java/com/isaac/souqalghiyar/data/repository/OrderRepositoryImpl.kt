@@ -44,7 +44,7 @@ class OrderRepositoryImpl @Inject constructor(
                     transaction.set(itemRef, finalItem)
                 }
 
-                // 🌟 التعديل الجوهري: إنشاء إشعار واحد فقط دون البحث عن المدراء 🌟
+                // إنشاء إشعار واحد فقط دون البحث عن المدراء
                 val adminAlarmRef = db.collection("admin_alarm").document()
                 val adminAlarmData = admin_alarm(
                     alarm_id = adminAlarmRef.id,
@@ -141,9 +141,10 @@ class OrderRepositoryImpl @Inject constructor(
         disapprovalNotes: String
     ): Result<Unit> {
         return try {
-            // 1. تحديث حالة الطلب
+            // 1. تحديث حالة الطلب مع تحديث تاريخ الحالة الجديدة (order_status_date)
             val updates = mapOf(
                 "order_status" to newStatus,
+                "order_status_date" to com.google.firebase.Timestamp.now(), // التعديل هنا لتسجيل وقت تغيير الحالة
                 "approval_notes" to approvalNotes,
                 "disapproval_notes" to disapprovalNotes
             )
@@ -164,7 +165,7 @@ class OrderRepositoryImpl @Inject constructor(
                 val title = if (newStatus == "canceled") "طلب مرفوض" else "طلب مكتمل"
                 val message = if (newStatus == "canceled") "قام العميل برفض الفاتورة للطلب رقم $orderNumber" else "قام العميل بالموافقة على الفاتورة للطلب رقم $orderNumber"
 
-                // 🌟 التعديل الجوهري: إنشاء إشعار واحد فقط للإدارة
+                // إنشاء إشعار واحد فقط للإدارة
                 val adminAlarmRef = db.collection("admin_alarm").document()
                 val adminAlarmData = admin_alarm(
                     alarm_id = adminAlarmRef.id,
