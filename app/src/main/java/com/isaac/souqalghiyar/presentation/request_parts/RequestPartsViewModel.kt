@@ -39,7 +39,6 @@ class RequestPartsViewModel @Inject constructor(
     val description = MutableStateFlow("")
     val comments = MutableStateFlow("")
 
-    // تم إضافة صنعاء كقيمة افتراضية
     val location = MutableStateFlow("صنعاء")
     val deliveryLocation = MutableStateFlow("")
 
@@ -118,6 +117,9 @@ class RequestPartsViewModel @Inject constructor(
 
         _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
+        // حفظ الوقت الحالي ليكون مطابقاً في كلا العمودين عند الإنشاء
+        val currentTimestamp = Timestamp.now()
+
         val newOrder = Order(
             user_id = userId,
             brand_name = brandName,
@@ -127,7 +129,9 @@ class RequestPartsViewModel @Inject constructor(
             vin_number = vinNumber.ifEmpty { "غير محدد" },
             location = location.value,
             delivery_location = deliveryLocation.value,
-            created_at = Timestamp.now()
+            order_status = "pending",
+            order_status_date = currentTimestamp, // التعديل هنا 
+            created_at = currentTimestamp         // التعديل هنا
         )
 
         viewModelScope.launch {
