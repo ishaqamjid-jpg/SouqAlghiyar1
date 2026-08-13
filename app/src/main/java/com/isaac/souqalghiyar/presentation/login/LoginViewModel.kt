@@ -46,8 +46,15 @@ class LoginViewModel @Inject constructor(
     private val _otpCode = MutableStateFlow("")
     val otpCode: StateFlow<String> = _otpCode.asStateFlow()
 
-    private val _name = MutableStateFlow("")
-    val name: StateFlow<String> = _name.asStateFlow()
+    // متغيرات الاسم الثلاثي
+    private val _firstName = MutableStateFlow("")
+    val firstName: StateFlow<String> = _firstName.asStateFlow()
+
+    private val _fatherName = MutableStateFlow("")
+    val fatherName: StateFlow<String> = _fatherName.asStateFlow()
+
+    private val _lastName = MutableStateFlow("")
+    val lastName: StateFlow<String> = _lastName.asStateFlow()
 
     private val _rememberMe = MutableStateFlow(true)
     val rememberMe: StateFlow<Boolean> = _rememberMe.asStateFlow()
@@ -76,7 +83,12 @@ class LoginViewModel @Inject constructor(
             _otpCode.value = code
         }
     }
-    fun onNameChange(name: String) { _name.value = name }
+    
+    // دوال تحديث الاسم
+    fun onFirstNameChange(name: String) { _firstName.value = name }
+    fun onFatherNameChange(name: String) { _fatherName.value = name }
+    fun onLastNameChange(name: String) { _lastName.value = name }
+    
     fun onRememberMeChange(checked: Boolean) { _rememberMe.value = checked }
 
     fun startPhoneVerification(activity: Activity) {
@@ -170,11 +182,13 @@ class LoginViewModel @Inject constructor(
         existsResult.fold(
             onSuccess = { savedName ->
                 if (!savedName.isNullOrEmpty()) {
+                    // في حال كان المستخدم قديماً، يتم استخدام اسمه القديم المحفوظ والدخول مباشرة
                     if (_rememberMe.value) {
                         authRepository.saveSessionLocally(uid, savedName, phoneNumber)
                     }
                     _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true, userId = uid)
                 } else {
+                    // في حال كان المستخدم جديداً، يتم توجيهه لإدخال الاسم الثلاثي
                     _uiState.value = _uiState.value.copy(isLoading = false, step = LoginStep.ENTER_NAME, userId = uid)
                 }
             },
@@ -185,23 +199,29 @@ class LoginViewModel @Inject constructor(
     }
 
     fun completeRegistration() {
-        val currentName = _name.value.trim()
+        val fName = _firstName.value.trim()
+        val mName = _fatherName.value.trim()
+        val lName = _lastName.value.trim()
+        
         val uid = _uiState.value.userId ?: return
         val currentPhone = firebaseAuth.currentUser?.phoneNumber ?: "+967${_phone.value}"
 
-        if (currentName.isEmpty()) {
-            _uiState.value = _uiState.value.copy(error = "يرجى كتابة اسمك لإكمال التسجيل")
+        if (fName.isEmpty() || mName.isEmpty() || lName.isEmpty()) {
+            _uiState.value = _uiState.value.copy(error = "يرجى تعبئة جميع الخانات (الاسم الأول، اسم الأب، اللقب)")
             return
         }
 
         _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
+        // دمج الأسماء في متغير واحد
+        val fullDisplayName = "$fName $mName $lName"
+
         viewModelScope.launch {
-            val saveResult = authRepository.saveUserData(uid, currentPhone, currentName)
+            val saveResult = authRepository.saveUserData(uid, currentPhone, fullDisplayName)
             saveResult.fold(
                 onSuccess = {
                     if (_rememberMe.value) {
-                        authRepository.saveSessionLocally(uid, currentName, currentPhone)
+                        authRepository.saveSessionLocally(uid, fullDisplayName, currentPhone)
                     }
                     _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
                 },
