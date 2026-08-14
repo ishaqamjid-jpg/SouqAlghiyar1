@@ -2,6 +2,12 @@ package com.isaac.souqalghiyar.presentation.main
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapShader
+import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Shader
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
@@ -30,9 +36,11 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -73,12 +81,55 @@ fun isInternetAvailable(context: Context): Boolean {
     }
 }
 
+// دالة لإنشاء فرشاة (Brush) ترسم نمط الكاربون فايبر برمجياً
+@Composable
+fun getCarbonFiberBrush(): Brush {
+    val density = LocalDensity.current
+    return remember(density) {
+        val size = with(density) { 10.dp.toPx().toInt() } 
+        val s = size.toFloat()
+        val bitmap = Bitmap.createBitmap(size * 2, size * 2, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        val color1 = android.graphics.Color.parseColor("#0A0A0A") // اللون الأغمق
+        val color2 = android.graphics.Color.parseColor("#181818") // الإضاءة الداكنة
+        val color3 = android.graphics.Color.parseColor("#111111") // لون وسط
+        val color4 = android.graphics.Color.parseColor("#222222") // الإضاءة الأفتح (لمعة الكاربون)
+
+        // رسم المربع العلوي الأيسر
+        var paint = Paint().apply {
+            shader = LinearGradient(0f, 0f, s, s, intArrayOf(color1, color2, color1), null, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(0f, 0f, s, s, paint)
+
+        // رسم المربع السفلي الأيمن
+        paint = Paint().apply {
+            shader = LinearGradient(s, s, s*2, s*2, intArrayOf(color1, color2, color1), null, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(s, s, s*2, s*2, paint)
+
+        // رسم المربع العلوي الأيمن باتجاه معاكس للمعة
+        paint = Paint().apply {
+            shader = LinearGradient(s, s, s*2, 0f, intArrayOf(color3, color4, color3), null, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(s, 0f, s*2, s, paint)
+
+        // رسم المربع السفلي الأيسر باتجاه معاكس للمعة
+        paint = Paint().apply {
+            shader = LinearGradient(0f, s*2, s, s, intArrayOf(color3, color4, color3), null, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(0f, s, s, s*2, paint)
+
+        ShaderBrush(BitmapShader(bitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT))
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     userId: String,
     viewModel: MainViewModel = hiltViewModel(),
-    onOpenPrivacyPolicy: () -> Unit, // تمت إضافته
+    onOpenPrivacyPolicy: () -> Unit,
     navigateToRequestParts: (String, String, String, String, String) -> Unit,
     navigateToOrders: (String) -> Unit,
     navigateToNotifications: (String) -> Unit,
@@ -93,6 +144,7 @@ fun MainScreen(
     val hasUnreadNotifications by viewModel.hasUnreadNotifications.collectAsState()
 
     val context = LocalContext.current
+    val carbonBrush = getCarbonFiberBrush() // استدعاء فرشاة الكاربون فايبر
 
     LaunchedEffect(userId) {
         viewModel.checkPendingOrders(userId)
@@ -122,158 +174,159 @@ fun MainScreen(
     }
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-        Scaffold(
-            topBar = {
-                CenterAlignedTopAppBar(
-                    title = { Text("سوق الغيار", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp) },
-                    navigationIcon = {
-                        IconButton(onClick = { navigateToNotifications(userId) }) {
-                            BadgedBox(
-                                badge = {
-                                    if (hasUnreadNotifications) Badge(containerColor = PrimaryRed, modifier = Modifier.offset(x = (-4).dp, y = 4.dp)) { Text("!") }
+        // تم إضافة Box مع خلفية الكاربون فايبر التي ستظهر تحت الـ Scaffold
+        Box(modifier = Modifier.fillMaxSize().background(carbonBrush)) {
+            Scaffold(
+                topBar = {
+                    CenterAlignedTopAppBar(
+                        title = { Text("سوق الغيار", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp) },
+                        navigationIcon = {
+                            IconButton(onClick = { navigateToNotifications(userId) }) {
+                                BadgedBox(
+                                    badge = {
+                                        if (hasUnreadNotifications) Badge(containerColor = PrimaryRed, modifier = Modifier.offset(x = (-4).dp, y = 4.dp)) { Text("!") }
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Notifications, contentDescription = "الإشعارات", tint = TextWhite, modifier = Modifier.size(26.dp))
                                 }
-                            ) {
-                                Icon(Icons.Default.Notifications, contentDescription = "الإشعارات", tint = TextWhite, modifier = Modifier.size(26.dp))
-                            }
-                        }
-                    },
-                    actions = {
-                        // إضافة زر سياسة الخصوصية بجانب تسجيل الخروج
-                        IconButton(onClick = onOpenPrivacyPolicy) {
-                            Icon(Icons.Default.PrivacyTip, contentDescription = "سياسة الخصوصية", tint = TextWhite, modifier = Modifier.size(26.dp))
-                        }
-                        IconButton(onClick = navigateToLogin) {
-                            Icon(Icons.Default.ExitToApp, contentDescription = "تسجيل خروج", tint = PrimaryRed, modifier = Modifier.size(26.dp))
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = Color.Black,
-                        titleContentColor = PrimaryRed
-                    ),
-                    modifier = Modifier.shadow(8.dp)
-                )
-            },
-            bottomBar = {
-                NavigationBar(containerColor = SurfaceDark) {
-                    NavigationBarItem(
-                        selected = false,
-                        onClick = {
-                            if (isInternetAvailable(context)) navigateToOrders(userId)
-                            else Toast.makeText(context, "لا يوجد اتصال بالإنترنت", Toast.LENGTH_SHORT).show()
-                        },
-                        icon = {
-                            BadgedBox(badge = { if (hasPendingOrders) Badge(containerColor = PrimaryRed) }) {
-                                Icon(Icons.Default.ListAlt, contentDescription = "طلباتي")
                             }
                         },
-                        label = { Text("طلباتي") },
-                        colors = NavigationBarItemDefaults.colors(
-                            unselectedIconColor = TextWhite, unselectedTextColor = TextWhite,
-                            selectedIconColor = PrimaryRed, selectedTextColor = PrimaryRed
+                        actions = {
+                            IconButton(onClick = onOpenPrivacyPolicy) {
+                                Icon(Icons.Default.PrivacyTip, contentDescription = "سياسة الخصوصية", tint = TextWhite, modifier = Modifier.size(26.dp))
+                            }
+                            IconButton(onClick = navigateToLogin) {
+                                Icon(Icons.Default.ExitToApp, contentDescription = "تسجيل خروج", tint = PrimaryRed, modifier = Modifier.size(26.dp))
+                            }
+                        },
+                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                            containerColor = Color.Black,
+                            titleContentColor = PrimaryRed
+                        ),
+                        modifier = Modifier.shadow(8.dp)
+                    )
+                },
+                bottomBar = {
+                    NavigationBar(containerColor = SurfaceDark) {
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = {
+                                if (isInternetAvailable(context)) navigateToOrders(userId)
+                                else Toast.makeText(context, "لا يوجد اتصال بالإنترنت", Toast.LENGTH_SHORT).show()
+                            },
+                            icon = {
+                                BadgedBox(badge = { if (hasPendingOrders) Badge(containerColor = PrimaryRed) }) {
+                                    Icon(Icons.Default.ListAlt, contentDescription = "طلباتي")
+                                }
+                            },
+                            label = { Text("طلباتي") },
+                            colors = NavigationBarItemDefaults.colors(
+                                unselectedIconColor = TextWhite, unselectedTextColor = TextWhite,
+                                selectedIconColor = PrimaryRed, selectedTextColor = PrimaryRed
+                            )
                         )
-                    )
-                    NavigationBarItem(
-                        selected = false,
-                        onClick = { showAboutDialog = true },
-                        icon = { Icon(Icons.Default.Info, contentDescription = "حول النظام") },
-                        label = { Text("حول النظام") },
-                        colors = NavigationBarItemDefaults.colors(
-                            unselectedIconColor = TextWhite, unselectedTextColor = TextWhite,
-                            selectedIconColor = PrimaryRed, selectedTextColor = PrimaryRed
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = { showAboutDialog = true },
+                            icon = { Icon(Icons.Default.Info, contentDescription = "حول النظام") },
+                            label = { Text("حول النظام") },
+                            colors = NavigationBarItemDefaults.colors(
+                                unselectedIconColor = TextWhite, unselectedTextColor = TextWhite,
+                                selectedIconColor = PrimaryRed, selectedTextColor = PrimaryRed
+                            )
                         )
-                    )
-                }
-            },
-            containerColor = DarkBackground
-        ) { innerPadding ->
-            if (isLoadingData) {
-                Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = PrimaryRed)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("جاري تحديث البيانات...", color = PrimaryRed, fontWeight = FontWeight.Bold)
                     }
-                }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                        .padding(horizontal = 16.dp)
-                        .verticalScroll(rememberScrollState()),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    if (currentUser != null) {
-                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text("أهلاً بكم، ", color = TextGray, fontSize = 18.sp, fontWeight = FontWeight.Medium)
-                            Text(currentUser!!.display_name, color = PrimaryRed, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                },
+                // جعلنا الـ Scaffold شفافاً ليظهر الكاربون فايبر الموجود في الـ Box
+                containerColor = Color.Transparent 
+            ) { innerPadding ->
+                if (isLoadingData) {
+                    Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = PrimaryRed)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("جاري تحديث البيانات...", color = PrimaryRed, fontWeight = FontWeight.Bold)
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
                     }
-
-                    AnimatedAdsCard(ads = adsList)
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Text("بيانات المركبة", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start, color = PrimaryRed, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    CarDetailsFields(
-                        brand = brandName,
-                        onBrandChange = { newBrand ->
-                            brandName = newBrand
-                            // تفعيل التعبئة التلقائية هنا
-                            val autoLoc = viewModel.deduceManufacturingLocation(newBrand)
-                            manufacture = autoLoc
-                        },
-                        brandsList = brandsList,
-                        model = vehicleModel, onModelChange = { vehicleModel = it },
-                        year = vehicleYear, onYearChange = { vehicleYear = it },
-                        madeIn = manufacture, onMadeInChange = { manufacture = it },
-                        vin = vinNumber, onVinChange = { vinNumber = it },
-                        isSearchingVin = isSearchingVin,
-                        onSearchVin = { searchVin ->
-                            if (isInternetAvailable(context)) {
-                                viewModel.searchByVin(
-                                    vin = searchVin,
-                                    onSuccess = { fetchedBrand, fetchedModel, fetchedYear, fetchedMadeIn ->
-                                        brandName = fetchedBrand; vehicleModel = fetchedModel; vehicleYear = fetchedYear; manufacture = fetchedMadeIn
-                                        Toast.makeText(context, "تم العثور على بيانات المركبة", Toast.LENGTH_SHORT).show()
-                                    },
-                                    onError = { errorMsg -> Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show() }
-                                )
-                            } else {
-                                Toast.makeText(context, "لا يوجد اتصال بالإنترنت للبحث", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    )
-
-                    Spacer(modifier = Modifier.height(40.dp))
-
-                    Button(
-                        onClick = {
-                            if (isInternetAvailable(context)) {
-                                // تمرير البيانات للراوت بالترتيب الصحيح
-                                navigateToRequestParts(brandName, vehicleModel, vehicleYear, manufacture, vinNumber.ifEmpty { "غير محدد" })
-                            } else {
-                                Toast.makeText(context, "الرجاء الاتصال بالإنترنت لإرسال الطلب", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(60.dp).padding(bottom = 8.dp).shadow(if (isRequiredFieldsFilled) 8.dp else 0.dp, RoundedCornerShape(16.dp)),
-                        shape = RoundedCornerShape(16.dp),
-                        enabled = isRequiredFieldsFilled,
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryRed, disabledContainerColor = SurfaceDark)
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding)
+                            .padding(horizontal = 16.dp)
+                            .verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("طلب قطع غيار", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = if (isRequiredFieldsFilled) TextWhite else TextGray)
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        if (currentUser != null) {
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text("أهلاً بكم، ", color = TextGray, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                                Text(currentUser!!.display_name, color = PrimaryRed, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        AnimatedAdsCard(ads = adsList)
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Text("بيانات المركبة", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start, color = PrimaryRed, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        CarDetailsFields(
+                            brand = brandName,
+                            onBrandChange = { newBrand ->
+                                brandName = newBrand
+                                val autoLoc = viewModel.deduceManufacturingLocation(newBrand)
+                                manufacture = autoLoc
+                            },
+                            brandsList = brandsList,
+                            model = vehicleModel, onModelChange = { vehicleModel = it },
+                            year = vehicleYear, onYearChange = { vehicleYear = it },
+                            madeIn = manufacture, onMadeInChange = { manufacture = it },
+                            vin = vinNumber, onVinChange = { vinNumber = it },
+                            isSearchingVin = isSearchingVin,
+                            onSearchVin = { searchVin ->
+                                if (isInternetAvailable(context)) {
+                                    viewModel.searchByVin(
+                                        vin = searchVin,
+                                        onSuccess = { fetchedBrand, fetchedModel, fetchedYear, fetchedMadeIn ->
+                                            brandName = fetchedBrand; vehicleModel = fetchedModel; vehicleYear = fetchedYear; manufacture = fetchedMadeIn
+                                            Toast.makeText(context, "تم العثور على بيانات المركبة", Toast.LENGTH_SHORT).show()
+                                        },
+                                        onError = { errorMsg -> Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show() }
+                                    )
+                                } else {
+                                    Toast.makeText(context, "لا يوجد اتصال بالإنترنت للبحث", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.height(40.dp))
+
+                        Button(
+                            onClick = {
+                                if (isInternetAvailable(context)) {
+                                    navigateToRequestParts(brandName, vehicleModel, vehicleYear, manufacture, vinNumber.ifEmpty { "غير محدد" })
+                                } else {
+                                    Toast.makeText(context, "الرجاء الاتصال بالإنترنت لإرسال الطلب", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(60.dp).padding(bottom = 8.dp).shadow(if (isRequiredFieldsFilled) 8.dp else 0.dp, RoundedCornerShape(16.dp)),
+                            shape = RoundedCornerShape(16.dp),
+                            enabled = isRequiredFieldsFilled,
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryRed, disabledContainerColor = SurfaceDark)
+                        ) {
+                            Text("طلب قطع غيار", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = if (isRequiredFieldsFilled) TextWhite else TextGray)
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
                     }
-
-                    Spacer(modifier = Modifier.height(20.dp))
                 }
-            }
 
-            if (showAboutDialog) {
-                AboutSystemDialog(onDismiss = { showAboutDialog = false })
+                if (showAboutDialog) {
+                    AboutSystemDialog(onDismiss = { showAboutDialog = false })
+                }
             }
         }
     }
@@ -296,7 +349,6 @@ fun CarDetailsFields(
     var expandedMadeIn by remember { mutableStateOf(false) }
 
     val yearsList = (2000..2026).map { it.toString() }.reversed()
-    // تم إضافة الخيارات الخليجية والأمريكية المطلوبة هنا
     val madeInOptions = listOf("اليابان مواصفات خليجي", "اليابان مواصفات امريكي", "ألمانيا", "أمريكا", "كوريا الجنوبية", "الصين", "فرنسا", "إيطاليا", "بريطانيا", "غير معروف")
 
     val defaultTextFieldColors = OutlinedTextFieldDefaults.colors(
@@ -374,7 +426,6 @@ fun CarDetailsFields(
     }
 }
 
-// ... (بقية مكونات AnimatedAdsCard و AboutSystemDialog كما هي تماماً في كودك)
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AnimatedAdsCard(ads: List<Advertisement>) {
