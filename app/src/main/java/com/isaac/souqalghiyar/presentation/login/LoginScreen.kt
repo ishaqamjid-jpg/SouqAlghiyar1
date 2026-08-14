@@ -3,6 +3,12 @@ package com.isaac.souqalghiyar.presentation.login
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapShader
+import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Shader
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
@@ -25,6 +31,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
@@ -70,6 +77,44 @@ fun formatTimer(seconds: Int): String {
     return String.format("%02d:%02d", min, sec)
 }
 
+@Composable
+fun getCarbonFiberBrush(): Brush {
+    val density = LocalDensity.current
+    return remember(density) {
+        val size = with(density) { 10.dp.toPx().toInt() }
+        val s = size.toFloat()
+        val bitmap = Bitmap.createBitmap(size * 2, size * 2, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        val color1 = android.graphics.Color.parseColor("#0A0A0A")
+        val color2 = android.graphics.Color.parseColor("#181818")
+        val color3 = android.graphics.Color.parseColor("#111111")
+        val color4 = android.graphics.Color.parseColor("#222222")
+
+        var paint = Paint().apply {
+            shader = LinearGradient(0f, 0f, s, s, intArrayOf(color1, color2, color1), null, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(0f, 0f, s, s, paint)
+
+        paint = Paint().apply {
+            shader = LinearGradient(s, s, s*2, s*2, intArrayOf(color1, color2, color1), null, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(s, s, s*2, s*2, paint)
+
+        paint = Paint().apply {
+            shader = LinearGradient(s, s, s*2, 0f, intArrayOf(color3, color4, color3), null, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(s, 0f, s*2, s, paint)
+
+        paint = Paint().apply {
+            shader = LinearGradient(0f, s*2, s, s, intArrayOf(color3, color4, color3), null, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(0f, s, s, s*2, paint)
+
+        ShaderBrush(BitmapShader(bitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT))
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
@@ -88,6 +133,7 @@ fun LoginScreen(
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
     val activity = context as? Activity
+    val carbonBrush = getCarbonFiberBrush()
 
     var showAboutDialog by remember { mutableStateOf(false) }
 
@@ -104,7 +150,7 @@ fun LoginScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DarkBackground)
+                .background(carbonBrush)
                 .systemBarsPadding()
         ) {
             IconButton(
@@ -159,7 +205,6 @@ fun LoginScreen(
                     cursorColor = PrimaryRed
                 )
 
-                // الخطوة الأولى: إدخال الرقم
                 AnimatedVisibility(
                     visible = uiState.step == LoginStep.ENTER_PHONE,
                     enter = fadeIn(tween(500)),
@@ -258,7 +303,6 @@ fun LoginScreen(
                     }
                 }
 
-                // الخطوة الثانية: إدخال الرمز
                 AnimatedVisibility(
                     visible = uiState.step == LoginStep.ENTER_CODE,
                     enter = fadeIn(tween(500)),
@@ -331,7 +375,6 @@ fun LoginScreen(
                     }
                 }
 
-                // الخطوة الثالثة: إدخال الاسم (للعملاء الجدد فقط)
                 AnimatedVisibility(
                     visible = uiState.step == LoginStep.ENTER_NAME,
                     enter = fadeIn(tween(500)),
@@ -356,7 +399,7 @@ fun LoginScreen(
                             shape = RoundedCornerShape(12.dp),
                             colors = customTextFieldColors
                         )
-                        
+
                         Spacer(Modifier.height(10.dp))
 
                         OutlinedTextField(
@@ -429,7 +472,6 @@ fun LoginScreen(
                 Spacer(Modifier.height(40.dp))
             }
 
-            // رابط سياسة الخصوصية بالأسفل
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

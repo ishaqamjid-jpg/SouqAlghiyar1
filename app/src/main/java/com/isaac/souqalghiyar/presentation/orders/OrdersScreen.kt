@@ -1,8 +1,15 @@
 package com.isaac.souqalghiyar.presentation.orders
 
+import android.graphics.Bitmap
+import android.graphics.BitmapShader
+import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Shader
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,8 +27,11 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -38,6 +48,44 @@ val SurfaceDark = Color(0xFF1E1E1E)
 val TextWhite = Color(0xFFFFFFFF)
 val TextGray = Color(0xFFAAAAAA)
 
+@Composable
+fun getCarbonFiberBrush(): Brush {
+    val density = LocalDensity.current
+    return remember(density) {
+        val size = with(density) { 10.dp.toPx().toInt() }
+        val s = size.toFloat()
+        val bitmap = Bitmap.createBitmap(size * 2, size * 2, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        val color1 = android.graphics.Color.parseColor("#0A0A0A")
+        val color2 = android.graphics.Color.parseColor("#181818")
+        val color3 = android.graphics.Color.parseColor("#111111")
+        val color4 = android.graphics.Color.parseColor("#222222")
+
+        var paint = Paint().apply {
+            shader = LinearGradient(0f, 0f, s, s, intArrayOf(color1, color2, color1), null, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(0f, 0f, s, s, paint)
+
+        paint = Paint().apply {
+            shader = LinearGradient(s, s, s*2, s*2, intArrayOf(color1, color2, color1), null, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(s, s, s*2, s*2, paint)
+
+        paint = Paint().apply {
+            shader = LinearGradient(s, s, s*2, 0f, intArrayOf(color3, color4, color3), null, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(s, 0f, s*2, s, paint)
+
+        paint = Paint().apply {
+            shader = LinearGradient(0f, s*2, s, s, intArrayOf(color3, color4, color3), null, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(0f, s, s, s*2, paint)
+
+        ShaderBrush(BitmapShader(bitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT))
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrdersScreen(
@@ -48,6 +96,7 @@ fun OrdersScreen(
     val orders by viewModel.orders.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val context = LocalContext.current
+    val carbonBrush = getCarbonFiberBrush()
 
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("الطلبات المعلقة", "الطلبات السابقة")
@@ -56,7 +105,6 @@ fun OrdersScreen(
         viewModel.fetchUserOrders(userId)
     }
 
-    // استدعاء دالة مسح الإشعارات المكتملة عند الانتقال للتاب الثاني (الطلبات السابقة)
     LaunchedEffect(selectedTab, orders) {
         if (selectedTab == 1 && orders.isNotEmpty()) {
             viewModel.clearCompletedOrderAlarms(userId, orders)
@@ -64,83 +112,85 @@ fun OrdersScreen(
     }
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("طلباتي", fontWeight = FontWeight.ExtraBold) },
-                    navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "رجوع", tint = TextWhite)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Black,
-                        titleContentColor = PrimaryRed
+        Box(modifier = Modifier.fillMaxSize().background(carbonBrush)) {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text("طلباتي", fontWeight = FontWeight.ExtraBold) },
+                        navigationIcon = {
+                            IconButton(onClick = onNavigateBack) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "رجوع", tint = TextWhite)
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Black,
+                            titleContentColor = PrimaryRed
+                        )
                     )
-                )
-            },
-            containerColor = DarkBackground
-        ) { innerPadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Color.Black,
-                    contentColor = TextWhite,
-                    indicator = { tabPositions ->
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                            color = PrimaryRed
-                        )
-                    }
+                },
+                containerColor = Color.Transparent
+            ) { innerPadding ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
                 ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = { Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = if(selectedTab == index) PrimaryRed else TextGray) }
-                        )
-                    }
-                }
-
-                if (isLoading) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = PrimaryRed)
-                    }
-                } else {
-                    val filteredOrders = if (selectedTab == 0) {
-                        orders.filter {
-                            val status = it.order.order_status.trim().lowercase()
-                            status == "pending" || status == "waiting for approval" || status == "waiting for approvel" || status == "going"
-                        }
-                    } else {
-                        orders.filter {
-                            val status = it.order.order_status.trim().lowercase()
-                            status == "completed" || status == "canceled"
-                        }
-                    }
-
-                    if (filteredOrders.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(
-                                text = if (selectedTab == 0) "لا توجد طلبات معلقة حالياً" else "لا توجد طلبات سابقة",
-                                color = TextGray,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        containerColor = Color.Black,
+                        contentColor = TextWhite,
+                        indicator = { tabPositions ->
+                            TabRowDefaults.SecondaryIndicator(
+                                Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                                color = PrimaryRed
                             )
                         }
+                    ) {
+                        tabs.forEachIndexed { index, title ->
+                            Tab(
+                                selected = selectedTab == index,
+                                onClick = { selectedTab = index },
+                                text = { Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = if(selectedTab == index) PrimaryRed else TextGray) }
+                            )
+                        }
+                    }
+
+                    if (isLoading) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = PrimaryRed)
+                        }
                     } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(filteredOrders) { orderData ->
-                                OrderCard(data = orderData, viewModel = viewModel)
+                        val filteredOrders = if (selectedTab == 0) {
+                            orders.filter {
+                                val status = it.order.order_status.trim().lowercase()
+                                status == "pending" || status == "waiting for approval" || status == "waiting for approvel" || status == "going"
+                            }
+                        } else {
+                            orders.filter {
+                                val status = it.order.order_status.trim().lowercase()
+                                status == "completed" || status == "canceled"
+                            }
+                        }
+
+                        if (filteredOrders.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = if (selectedTab == 0) "لا توجد طلبات معلقة حالياً" else "لا توجد طلبات سابقة",
+                                    color = TextGray,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(filteredOrders) { orderData ->
+                                    OrderCard(data = orderData, viewModel = viewModel)
+                                }
                             }
                         }
                     }

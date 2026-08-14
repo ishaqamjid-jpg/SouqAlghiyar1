@@ -66,6 +66,7 @@ class MainActivity : ComponentActivity() {
         val isLoggedIn = sharedPreferences.getBoolean("is_logged_in", false)
         val savedUserId = sharedPreferences.getString("user_id", "") ?: ""
 
+        // هذا الكود يعمل للطلبات اللاحقة (عندما يكون مسجلاً مسبقاً)
         if (isLoggedIn && savedUserId.isNotEmpty()) {
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (task.isSuccessful) {
@@ -92,10 +93,15 @@ class MainActivity : ComponentActivity() {
                             LoginScreen(
                                 onOpenPrivacyPolicy = { openPrivacyPolicyWeb() },
                                 navigateToMain = { userId ->
-                                    val token = sharedPreferences.getString("fcm_token", "") ?: ""
-                                    if (token.isNotEmpty()) {
-                                        FirebaseFirestore.getInstance().collection("users").document(userId)
-                                            .update("fcm_token", token)
+
+                                    // الحل الجذري: طلب التوكن لحظياً من السيرفر فور الدخول لأول مرة ورفعه لضمان وصول الإشعارات
+                                    FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                                        if (task.isSuccessful) {
+                                            val token = task.result
+                                            sharedPreferences.edit().putString("fcm_token", token).apply()
+                                            FirebaseFirestore.getInstance().collection("users").document(userId)
+                                                .update("fcm_token", token)
+                                        }
                                     }
 
                                     navController.navigate("main/$userId") {
@@ -111,15 +117,15 @@ class MainActivity : ComponentActivity() {
                             MainScreen(
                                 userId = userId,
                                 onOpenPrivacyPolicy = { openPrivacyPolicyWeb() },
-                                navigateToRequestParts = { brandName, model, year, manufacture, vinNumber ->
+                                navigateToRequestParts = { brandName, vehicleName, vehicleModel, manufacture, vinNumber ->
                                     val safeVin = vinNumber.ifBlank { "غير_محدد" }.replace("/", "-")
                                     val safeBrand = brandName.ifBlank { "غير_محدد" }.replace("/", "-")
-                                    val safeModel = model.ifBlank { "غير_محدد" }.replace("/", "-")
-                                    val safeYear = year.ifBlank { "غير_محدد" }.replace("/", "-")
+                                    val safeName = vehicleName.ifBlank { "غير_محدد" }.replace("/", "-")
+                                    val safeModel = vehicleModel.ifBlank { "غير_محدد" }.replace("/", "-")
                                     val safeManuf = manufacture.ifBlank { "غير_محدد" }.replace("/", "-")
                                     val safeUserId = userId.ifBlank { "unknown_user" }
 
-                                    navController.navigate("request_parts/$safeUserId/$safeBrand/$safeModel/$safeYear/$safeManuf/$safeVin")
+                                    navController.navigate("request_parts/$safeUserId/$safeBrand/$safeName/$safeModel/$safeManuf/$safeVin")
                                 },
                                 navigateToOrders = { passedUserId ->
                                     val safeId = passedUserId.ifBlank { "unknown_user" }
@@ -143,20 +149,20 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // تم تصحيح ترتيب المتغيرات هنا لتطابق الطلب
-                        composable("request_parts/{userId}/{brandName}/{model}/{year}/{manufacture}/{vinNumber}") { backStackEntry ->
+                        // تم توحيد المسميات (vehicleName و vehicleModel) لتتطابق تماماً بين المسار ومحتوى الشاشة
+                        composable("request_parts/{userId}/{brandName}/{vehicleName}/{vehicleModel}/{manufacture}/{vinNumber}") { backStackEntry ->
                             val userId = backStackEntry.arguments?.getString("userId")?.replace("unknown_user", "") ?: ""
                             val brandName = backStackEntry.arguments?.getString("brandName")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
-                            val model = backStackEntry.arguments?.getString("model")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
-                            val year = backStackEntry.arguments?.getString("year")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
+                            val vehicleName = backStackEntry.arguments?.getString("vehicleName")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
+                            val vehicleModel = backStackEntry.arguments?.getString("vehicleModel")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
                             val manufacture = backStackEntry.arguments?.getString("manufacture")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
                             val vinNumber = backStackEntry.arguments?.getString("vinNumber")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
 
                             RequestPartsScreen(
                                 userId = userId,
                                 brandName = brandName,
-                                vehicleName = model, // الموديل
-                                vehicleModel = year, // السنة (بناءً على التسميات في كودك القديم)
+                                vehicleName = vehicleName,
+                                vehicleModel = vehicleModel,
                                 manufacture = manufacture,
                                 vinNumber = vinNumber,
                                 onNavigateBack = { navController.popBackStack() }
