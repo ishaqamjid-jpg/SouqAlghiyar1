@@ -8,6 +8,8 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.messaging.FirebaseMessaging
 import com.isaac.souqalghiyar.domain.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -186,6 +188,10 @@ class LoginViewModel @Inject constructor(
                     if (_rememberMe.value) {
                         authRepository.saveSessionLocally(uid, savedName, phoneNumber)
                     }
+                    
+                    // التحديث: جلب ورفع التوكن للمستخدم القديم فوراً لضمان وصول الإشعارات
+                    updateFcmToken(uid)
+                    
                     _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true, userId = uid)
                 } else {
                     // في حال كان المستخدم جديداً، يتم توجيهه لإدخال الاسم الثلاثي
@@ -223,6 +229,10 @@ class LoginViewModel @Inject constructor(
                     if (_rememberMe.value) {
                         authRepository.saveSessionLocally(uid, fullDisplayName, currentPhone)
                     }
+                    
+                    // التحديث: جلب ورفع التوكن للمستخدم الجديد فوراً بعد حفظ بياناته
+                    updateFcmToken(uid)
+                    
                     _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
                 },
                 onFailure = { e ->
@@ -236,5 +246,16 @@ class LoginViewModel @Inject constructor(
         timerJob?.cancel()
         _uiState.value = _uiState.value.copy(step = LoginStep.ENTER_PHONE, timer = 0, error = null)
         _otpCode.value = ""
+    }
+    
+    // الدالة المسؤولة عن جلب الـ Token ورفعه لقاعدة البيانات
+    private suspend fun updateFcmToken(uid: String) {
+        try {
+            val token = FirebaseMessaging.getInstance().token.await()
+            FirebaseFirestore.getInstance().collection("users").document(uid)
+                .update("fcm_token", token).await()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }
