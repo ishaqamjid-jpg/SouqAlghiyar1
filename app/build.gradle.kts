@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.isaac.souqalghiyar"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.isaac.souqalghiyar"

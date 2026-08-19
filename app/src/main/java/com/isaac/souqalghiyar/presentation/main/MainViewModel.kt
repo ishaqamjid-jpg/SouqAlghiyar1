@@ -2,6 +2,8 @@ package com.isaac.souqalghiyar.presentation.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.isaac.souqalghiyar.domain.model.Advertisement
 import com.isaac.souqalghiyar.domain.model.users
 import com.isaac.souqalghiyar.domain.repository.MainRepository
@@ -14,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -83,6 +86,32 @@ class MainViewModel @Inject constructor(
     fun checkPendingOrders(userId: String) {
         viewModelScope.launch {
             _hasPendingOrders.value = true
+        }
+    }
+
+    // التعديل الجوهري لحذف الحساب من Auth للحصول على user_id جديد
+    fun deleteUserAccount(userId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                // 1. حذف بيانات المستخدم من جدول users في Firestore
+                FirebaseFirestore.getInstance().collection("users").document(userId).delete().await()
+
+                // 2. حذف الحساب نهائياً من Firebase Auth
+                val currentUser = FirebaseAuth.getInstance().currentUser
+                if (currentUser != null && currentUser.uid == userId) {
+                    currentUser.delete().await()
+                } else {
+                    FirebaseAuth.getInstance().signOut()
+                }
+
+                withContext(Dispatchers.Main) {
+                    onSuccess()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onError(e.message ?: "حدث خطأ أثناء محاولة حذف الحساب")
+                }
+            }
         }
     }
 

@@ -21,6 +21,10 @@ class OrderRepositoryImpl @Inject constructor(
 
     override suspend fun submitOrderWithItems(order: Order, items: List<OrderItem>): Result<Unit> {
         return try {
+            // جلب رقم هاتف المستخدم من جدول users قبل البدء بعملية الحفظ
+            val userSnapshot = db.collection("users").document(order.user_id).get().await()
+            val userPhoneNumber = userSnapshot.getString("phone_number") ?: "غير متوفر"
+
             val counterRef = db.collection("counters").document("orders")
             val orderRef = db.collection("orders").document()
 
@@ -32,9 +36,11 @@ class OrderRepositoryImpl @Inject constructor(
                 val counterData = hashMapOf<String, Any>("last_number" to newOrderNumber)
                 transaction.set(counterRef, counterData, SetOptions.merge())
 
+                // دمج رقم الهاتف (user_number) داخل كائن الطلب قبل حفظه في القاعدة
                 val finalOrder = order.copy(
                     order_id = orderRef.id,
-                    order_number = newOrderNumber
+                    order_number = newOrderNumber,
+                    user_number = userPhoneNumber
                 )
                 transaction.set(orderRef, finalOrder)
 
@@ -44,7 +50,7 @@ class OrderRepositoryImpl @Inject constructor(
                     transaction.set(itemRef, finalItem)
                 }
 
-                // إنشاء إشعار واحد فقط دون البحث عن المدراء
+                // إنشاء إشعار واحد فقط للإدارة
                 val adminAlarmRef = db.collection("admin_alarm").document()
                 val adminAlarmData = admin_alarm(
                     alarm_id = adminAlarmRef.id,
@@ -56,7 +62,7 @@ class OrderRepositoryImpl @Inject constructor(
                     isRead = false
                 )
                 transaction.set(adminAlarmRef, adminAlarmData)
-                
+
                 true
             }.await()
             Result.success(Unit)
@@ -107,6 +113,7 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override fun getUserOrders(userId: String): Flow<List<OrderWithItems>> = callbackFlow {
+        // الاستعلام مبني على الـ user_id حصراً
         val subscription = db.collection("orders").whereEqualTo("user_id", userId).addSnapshotListener { snapshot, error ->
             if (error != null) { close(error); return@addSnapshotListener }
             if (snapshot == null || snapshot.isEmpty) { trySend(emptyList()); return@addSnapshotListener }
@@ -141,31 +148,26 @@ class OrderRepositoryImpl @Inject constructor(
         disapprovalNotes: String
     ): Result<Unit> {
         return try {
-            // 1. تحديث حالة الطلب مع تحديث تاريخ الحالة الجديدة (order_status_date)
             val updates = mapOf(
                 "order_status" to newStatus,
-                "order_status_date" to com.google.firebase.Timestamp.now(), // التعديل هنا لتسجيل وقت تغيير الحالة
+                "order_status_date" to com.google.firebase.Timestamp.now(),
                 "approval_notes" to approvalNotes,
                 "disapproval_notes" to disapprovalNotes
             )
             db.collection("orders").document(orderId).update(updates).await()
 
-            // 2. جلب رقم الطلب للتعامل مع الإشعارات
             val orderSnapshot = db.collection("orders").document(orderId).get().await()
             val orderNumber = orderSnapshot.getLong("order_number") ?: 0L
 
-            // 3. حذف إشعار العميل القديم (لأنه قد تم اتخاذ قرار بشأنه)
             val userAlarms = db.collection("user_alarm").whereEqualTo("order_number", orderNumber).get().await()
             for (doc in userAlarms.documents) {
                 db.collection("user_alarm").document(doc.id).delete().await()
             }
 
-            // 4. إنشاء إشعار للإدارة بقرار العميل (في حال الرفض أو القبول)
             if (newStatus == "canceled" || newStatus == "completed" || newStatus == "going") {
                 val title = if (newStatus == "canceled") "طلب مرفوض" else "طلب مكتمل"
                 val message = if (newStatus == "canceled") "قام العميل برفض الفاتورة للطلب رقم $orderNumber" else "قام العميل بالموافقة على الفاتورة للطلب رقم $orderNumber"
 
-                // إنشاء إشعار واحد فقط للإدارة
                 val adminAlarmRef = db.collection("admin_alarm").document()
                 val adminAlarmData = admin_alarm(
                     alarm_id = adminAlarmRef.id,
@@ -173,7 +175,7 @@ class OrderRepositoryImpl @Inject constructor(
                     order_number = orderNumber,
                     title = title,
                     message = message,
-                    fcm_token = "", // السيرفر سيرسله للمجموعة تلقائياً
+                    fcm_token = "",
                     isRead = false
                 )
                 db.collection("admin_alarm").document(adminAlarmRef.id).set(adminAlarmData).await()

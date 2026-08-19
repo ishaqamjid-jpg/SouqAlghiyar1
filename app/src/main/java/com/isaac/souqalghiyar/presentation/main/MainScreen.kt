@@ -86,7 +86,7 @@ fun isInternetAvailable(context: Context): Boolean {
 fun getCarbonFiberBrush(): Brush {
     val density = LocalDensity.current
     return remember(density) {
-        val size = with(density) { 10.dp.toPx().toInt() } 
+        val size = with(density) { 10.dp.toPx().toInt() }
         val s = size.toFloat()
         val bitmap = Bitmap.createBitmap(size * 2, size * 2, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -96,25 +96,21 @@ fun getCarbonFiberBrush(): Brush {
         val color3 = android.graphics.Color.parseColor("#111111") // لون وسط
         val color4 = android.graphics.Color.parseColor("#222222") // الإضاءة الأفتح (لمعة الكاربون)
 
-        // رسم المربع العلوي الأيسر
         var paint = Paint().apply {
             shader = LinearGradient(0f, 0f, s, s, intArrayOf(color1, color2, color1), null, Shader.TileMode.CLAMP)
         }
         canvas.drawRect(0f, 0f, s, s, paint)
 
-        // رسم المربع السفلي الأيمن
         paint = Paint().apply {
             shader = LinearGradient(s, s, s*2, s*2, intArrayOf(color1, color2, color1), null, Shader.TileMode.CLAMP)
         }
         canvas.drawRect(s, s, s*2, s*2, paint)
 
-        // رسم المربع العلوي الأيمن باتجاه معاكس للمعة
         paint = Paint().apply {
             shader = LinearGradient(s, s, s*2, 0f, intArrayOf(color3, color4, color3), null, Shader.TileMode.CLAMP)
         }
         canvas.drawRect(s, 0f, s*2, s, paint)
 
-        // رسم المربع السفلي الأيسر باتجاه معاكس للمعة
         paint = Paint().apply {
             shader = LinearGradient(0f, s*2, s, s, intArrayOf(color3, color4, color3), null, Shader.TileMode.CLAMP)
         }
@@ -144,7 +140,7 @@ fun MainScreen(
     val hasUnreadNotifications by viewModel.hasUnreadNotifications.collectAsState()
 
     val context = LocalContext.current
-    val carbonBrush = getCarbonFiberBrush() // استدعاء فرشاة الكاربون فايبر
+    val carbonBrush = getCarbonFiberBrush()
 
     LaunchedEffect(userId) {
         viewModel.checkPendingOrders(userId)
@@ -157,6 +153,8 @@ fun MainScreen(
     var manufacture by remember { mutableStateOf("") }
     var vinNumber by remember { mutableStateOf("") }
 
+    var showUserMenuDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
 
     val isRequiredFieldsFilled = brandName.isNotBlank() && vehicleModel.isNotBlank() && vehicleYear.isNotBlank() && manufacture.isNotBlank()
@@ -174,7 +172,6 @@ fun MainScreen(
     }
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-        // تم إضافة Box مع خلفية الكاربون فايبر التي ستظهر تحت الـ Scaffold
         Box(modifier = Modifier.fillMaxSize().background(carbonBrush)) {
             Scaffold(
                 topBar = {
@@ -227,9 +224,9 @@ fun MainScreen(
                         )
                         NavigationBarItem(
                             selected = false,
-                            onClick = { showAboutDialog = true },
-                            icon = { Icon(Icons.Default.Info, contentDescription = "حول النظام") },
-                            label = { Text("حول النظام") },
+                            onClick = { showUserMenuDialog = true },
+                            icon = { Icon(Icons.Default.Person, contentDescription = "حسابي") },
+                            label = { Text("حسابي") },
                             colors = NavigationBarItemDefaults.colors(
                                 unselectedIconColor = TextWhite, unselectedTextColor = TextWhite,
                                 selectedIconColor = PrimaryRed, selectedTextColor = PrimaryRed
@@ -237,8 +234,7 @@ fun MainScreen(
                         )
                     }
                 },
-                // جعلنا الـ Scaffold شفافاً ليظهر الكاربون فايبر الموجود في الـ Box
-                containerColor = Color.Transparent 
+                containerColor = Color.Transparent
             ) { innerPadding ->
                 if (isLoadingData) {
                     Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
@@ -324,6 +320,105 @@ fun MainScreen(
                     }
                 }
 
+                // الحوار المنبثق لخيارات حساب المستخدم
+                if (showUserMenuDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showUserMenuDialog = false },
+                        confirmButton = {},
+                        title = { Text("إعدادات الحساب", color = PrimaryRed, fontWeight = FontWeight.Bold, fontSize = 20.sp) },
+                        text = {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            showUserMenuDialog = false
+                                            showDeleteConfirmDialog = true
+                                        }
+                                        .padding(vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = "حذف الحساب", tint = Color.Red, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("حذف الحساب نهائياً", color = Color.Red, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            showUserMenuDialog = false
+                                            showAboutDialog = true
+                                        }
+                                        .padding(vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Info, contentDescription = "حول النظام", tint = TextWhite, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("حول النظام", color = TextWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        },
+                        containerColor = SurfaceDark,
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                }
+
+                // حوار تأكيد حذف الحساب
+                if (showDeleteConfirmDialog) {
+                    var isDeleting by remember { mutableStateOf(false) }
+
+                    AlertDialog(
+                        onDismissRequest = { if (!isDeleting) showDeleteConfirmDialog = false },
+                        title = { Text("تأكيد الحذف", color = Color.Red, fontWeight = FontWeight.Bold) },
+                        text = { Text("هل أنت متأكد من رغبتك في حذف حسابك نهائياً؟ سيتم مسح جميع بياناتك ولن تتمكن من التراجع عن هذا الإجراء.", color = TextWhite, fontSize = 15.sp, lineHeight = 24.sp) },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    if (isInternetAvailable(context)) {
+                                        isDeleting = true
+                                        viewModel.deleteUserAccount(
+                                            userId = userId,
+                                            onSuccess = {
+                                                isDeleting = false
+                                                showDeleteConfirmDialog = false
+                                                // التوجيه لشاشة الدخول والمسح الشامل يقوم به دالة navigateToLogin المتوفرة مسبقاً
+                                                navigateToLogin()
+                                            },
+                                            onError = { error ->
+                                                isDeleting = false
+                                                Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+                                            }
+                                        )
+                                    } else {
+                                        Toast.makeText(context, "لا يوجد اتصال بالإنترنت", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                            ) {
+                                if (isDeleting) {
+                                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Text("حذف نهائي", color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = { showDeleteConfirmDialog = false },
+                                enabled = !isDeleting
+                            ) {
+                                Text("إلغاء", color = TextWhite)
+                            }
+                        },
+                        containerColor = SurfaceDark,
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                }
+
+                // حوار حول النظام الأساسي
                 if (showAboutDialog) {
                     AboutSystemDialog(onDismiss = { showAboutDialog = false })
                 }

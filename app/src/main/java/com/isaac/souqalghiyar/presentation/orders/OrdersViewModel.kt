@@ -49,7 +49,7 @@ class OrdersViewModel @Inject constructor(
         }
     }
 
-    // دالة جديدة: تقوم بمسح الإشعارات الخاصة بالطلبات المكتملة عند دخول المستخدم لقسم الطلبات السابقة
+    // تقوم بمسح الإشعارات الخاصة بالطلبات المكتملة عند دخول المستخدم لقسم الطلبات السابقة
     fun clearCompletedOrderAlarms(userId: String, orders: List<OrderWithItems>) {
         viewModelScope.launch {
             try {
