@@ -159,14 +159,16 @@ class OrderRepositoryImpl @Inject constructor(
             val orderSnapshot = db.collection("orders").document(orderId).get().await()
             val orderNumber = orderSnapshot.getLong("order_number") ?: 0L
 
+            // مسح إشعارات المستخدم القديمة لهذا الطلب
             val userAlarms = db.collection("user_alarm").whereEqualTo("order_number", orderNumber).get().await()
             for (doc in userAlarms.documents) {
                 db.collection("user_alarm").document(doc.id).delete().await()
             }
 
-            if (newStatus == "canceled" || newStatus == "completed" || newStatus == "going") {
-                val title = if (newStatus == "canceled") "طلب مرفوض" else "طلب مكتمل"
-                val message = if (newStatus == "canceled") "قام العميل برفض الفاتورة للطلب رقم $orderNumber" else "قام العميل بالموافقة على الفاتورة للطلب رقم $orderNumber"
+            // 🌟 التعديل هنا: إشعار واحد فقط مخصص للإدارة 🌟
+            if (newStatus == "going" || newStatus == "canceled") {
+                val title = if (newStatus == "going") "طلب بانتظار التوصيل 🚚" else "تم رفض التسعيرة ❌"
+                val message = if (newStatus == "going") "تمت موافقة العميل على الفاتورة للطلب رقم $orderNumber، بانتظار التوصيل." else "قام العميل برفض التسعيرة للطلب رقم $orderNumber."
 
                 val adminAlarmRef = db.collection("admin_alarm").document()
                 val adminAlarmData = admin_alarm(
