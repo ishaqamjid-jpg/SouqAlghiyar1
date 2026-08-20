@@ -51,7 +51,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // دالة فتح سياسة الخصوصية
     private fun openPrivacyPolicyWeb() {
         val url = "https://www.freeprivacypolicy.com/live/3e1984f9-e513-4798-b3f1-94c8e4f8534d"
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
@@ -66,7 +65,6 @@ class MainActivity : ComponentActivity() {
         val isLoggedIn = sharedPreferences.getBoolean("is_logged_in", false)
         val savedUserId = sharedPreferences.getString("user_id", "") ?: ""
 
-        // هذا الكود يعمل للطلبات اللاحقة (عندما يكون مسجلاً مسبقاً)
         if (isLoggedIn && savedUserId.isNotEmpty()) {
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (task.isSuccessful) {
@@ -76,6 +74,8 @@ class MainActivity : ComponentActivity() {
                         .update("fcm_token", token)
                 }
             }
+            // الاشتراك في إشعارات الفئة "الكل" للمستخدم المسجل
+            FirebaseMessaging.getInstance().subscribeToTopic("all_users")
         }
 
         setContent {
@@ -93,8 +93,6 @@ class MainActivity : ComponentActivity() {
                             LoginScreen(
                                 onOpenPrivacyPolicy = { openPrivacyPolicyWeb() },
                                 navigateToMain = { userId ->
-
-                                    // الحل الجذري: طلب التوكن لحظياً من السيرفر فور الدخول لأول مرة ورفعه لضمان وصول الإشعارات
                                     FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                                         if (task.isSuccessful) {
                                             val token = task.result
@@ -103,6 +101,8 @@ class MainActivity : ComponentActivity() {
                                                 .update("fcm_token", token)
                                         }
                                     }
+                                    // الاشتراك بمجرد تسجيل الدخول
+                                    FirebaseMessaging.getInstance().subscribeToTopic("all_users")
 
                                     navController.navigate("main/$userId") {
                                         popUpTo("login") { inclusive = true }
@@ -141,6 +141,9 @@ class MainActivity : ComponentActivity() {
                                             .update("fcm_token", "")
                                     }
                                     sharedPreferences.edit().clear().apply()
+                                    // إلغاء الاشتراك عند الخروج
+                                    FirebaseMessaging.getInstance().unsubscribeFromTopic("all_users")
+                                    
                                     navController.navigate("login") {
                                         popUpTo(0) { inclusive = true }
                                         launchSingleTop = true
@@ -149,7 +152,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // تم توحيد المسميات (vehicleName و vehicleModel) لتتطابق تماماً بين المسار ومحتوى الشاشة
                         composable("request_parts/{userId}/{brandName}/{vehicleName}/{vehicleModel}/{manufacture}/{vinNumber}") { backStackEntry ->
                             val userId = backStackEntry.arguments?.getString("userId")?.replace("unknown_user", "") ?: ""
                             val brandName = backStackEntry.arguments?.getString("brandName")?.replace("غير_محدد", "")?.replace("-", "/") ?: ""
