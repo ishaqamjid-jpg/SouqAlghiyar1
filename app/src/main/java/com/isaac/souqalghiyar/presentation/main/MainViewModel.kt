@@ -1,9 +1,11 @@
 package com.isaac.souqalghiyar.presentation.main
 
+import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.messaging.FirebaseMessaging
 import com.isaac.souqalghiyar.domain.model.Advertisement
 import com.isaac.souqalghiyar.domain.model.users
 import com.isaac.souqalghiyar.domain.repository.MainRepository
@@ -27,7 +29,8 @@ import javax.inject.Inject
 class MainViewModel @Inject constructor(
     private val repository: MainRepository,
     private val userRepository: UserRepository,
-    private val notificationRepository: NotificationRepository
+    private val notificationRepository: NotificationRepository,
+    private val sharedPreferences: SharedPreferences // للتحقق من الإشعارات العامة
 ) : ViewModel() {
 
     private val _currentUser = MutableStateFlow<users?>(null)
@@ -77,8 +80,10 @@ class MainViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            notificationRepository.getUserNotifications(userId).collect { alarms ->
-                _hasUnreadNotifications.value = alarms.any { !it.isRead }
+            notificationRepository.getUserAlarms(userId).collect { alarms ->
+                val hasUnreadPersonal = alarms.any { !it.isRead }
+                _hasUnreadNotifications.value = hasUnreadPersonal
+                // ملاحظة: تم الاكتفاء بتنبيه الإشعارات الشخصية (الطلبات) لعدم إزعاج المستخدم بالإعلانات
             }
         }
     }
@@ -89,14 +94,13 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // التعديل الجوهري لحذف الحساب من Auth للحصول على user_id جديد
     fun deleteUserAccount(userId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             try {
-                // 1. حذف بيانات المستخدم من جدول users في Firestore
                 FirebaseFirestore.getInstance().collection("users").document(userId).delete().await()
+                
+                FirebaseMessaging.getInstance().unsubscribeFromTopic("all_users")
 
-                // 2. حذف الحساب نهائياً من Firebase Auth
                 val currentUser = FirebaseAuth.getInstance().currentUser
                 if (currentUser != null && currentUser.uid == userId) {
                     currentUser.delete().await()
@@ -115,36 +119,27 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // دالة تحديد مكان التصنيع تلقائياً بناءً على الماركة
     fun deduceManufacturingLocation(brandName: String): String {
         val name = brandName.trim().lowercase()
         return when {
-            // الألماني
             name.contains("مرسيدس") || name.contains("mercedes") ||
                     name.contains("بي ام") || name.contains("bmw") ||
                     name.contains("أودي") || name.contains("audi") ||
                     name.contains("فولكس") || name.contains("volkswagen") ||
                     name.contains("بورشه") || name.contains("porsche") -> "ألمانيا"
-
-            // الياباني (تترك فارغة للعميل ليحدد المواصفات)
             name.contains("تويوتا") || name.contains("toyota") ||
                     name.contains("لكزس") || name.contains("lexus") ||
                     name.contains("نيسان") || name.contains("nissan") ||
                     name.contains("هوندا") || name.contains("honda") ||
                     name.contains("مازدا") || name.contains("mazda") ||
                     name.contains("ميتسوبيشي") || name.contains("mitsubishi") -> ""
-
-            // الكوري
             name.contains("هيونداي") || name.contains("hyundai") ||
                     name.contains("كيا") || name.contains("kia") -> "كوريا الجنوبية"
-
-            // الأمريكي
             name.contains("فورد") || name.contains("ford") ||
                     name.contains("شيفروليه") || name.contains("chevrolet") ||
                     name.contains("جمس") || name.contains("gmc") ||
                     name.contains("دودج") || name.contains("dodge") ||
                     name.contains("جيب") || name.contains("jeep") -> "أمريكا"
-
             else -> ""
         }
     }
@@ -208,13 +203,10 @@ class MainViewModel @Inject constructor(
                     val make = carData.optString("Make", "")
                     val model = carData.optString("Model", "")
                     val year = carData.optString("ModelYear", "")
-
                     return@withContext mapOf("brand" to make, "model" to model, "year" to year)
                 }
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (e: Exception) { e.printStackTrace() }
         return@withContext emptyMap()
     }
 
@@ -231,11 +223,9 @@ class MainViewModel @Inject constructor(
 
                 val apiData = fetchCarDetailsFromApi(cleanVin)
                 val autoCountry = getManufactureCountryFromVin(cleanVin)
-
                 val finalBrand = apiData["brand"].takeIf { !it.isNullOrEmpty() } ?: getBrandFromVin(cleanVin)
                 val finalModel = apiData["model"] ?: ""
                 val finalYear = apiData["year"] ?: ""
-
                 onSuccess(finalBrand, finalModel, finalYear, autoCountry)
             } catch (e: Exception) {
                 onError(e.message ?: "حدث خطأ أثناء البحث")
