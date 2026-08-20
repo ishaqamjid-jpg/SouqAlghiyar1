@@ -26,25 +26,29 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
 
-        // استخراج البيانات من الإشعار سواء كان Notification Payload أو Data Payload
+        // استخراج البيانات من الإشعار (نعتمد على Data Payload)
         val title = remoteMessage.data["title"] ?: remoteMessage.notification?.title ?: "سوق الغيار"
         val message = remoteMessage.data["message"] ?: remoteMessage.notification?.body ?: "لديك إشعار جديد"
 
-        // استخراج رقم الطلب إذا كان مبعوثاً من السيرفر (Cloud Functions)
+        // استخراج رقم الطلب (سيكون 0 أو فارغ في حالة الإعلانات)
         val orderNumber = remoteMessage.data["order_number"] ?: ""
+        
+        // 🌟 التعديل الجديد: استخراج نوع الإشعار 🌟
+        val type = remoteMessage.data["type"] ?: "unknown"
 
-        showNotification(title, message, orderNumber)
+        showNotification(title, message, orderNumber, type)
     }
 
-    private fun showNotification(title: String, message: String, orderNumber: String) {
+    // 🌟 التعديل الجديد: إضافة حقل type للدالة 🌟
+    private fun showNotification(title: String, message: String, orderNumber: String, type: String) {
         // تجهيز الـ Intent للانتقال إلى MainActivity عند الضغط على الإشعار
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            // تمرير رقم الطلب لكي نتمكن لاحقاً من فتح شاشة الطلبات وتحديد الطلب
+            // تمرير البيانات لكي يتعرف التطبيق على مسار التوجيه
             putExtra("order_number", orderNumber)
+            putExtra("notification_type", type) // إرسال النوع للتطبيق
         }
 
-        // استخدام UPDATE_CURRENT لضمان تحديث البيانات (رقم الطلب) في الـ Intent
         val pendingIntent = PendingIntent.getActivity(
             this,
             System.currentTimeMillis().toInt(), // جعل كل إشعار مستقلاً
@@ -55,31 +59,28 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val channelId = "client_notifications_channel"
 
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
-            // ⚠️ ملاحظة: يُفضل أن تكون الأيقونة بخلفية شفافة (PNG) باللون الأبيض
             .setSmallIcon(R.drawable.logo3)
             .setContentTitle(title)
             .setContentText(message)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setDefaults(NotificationCompat.DEFAULT_ALL) // لضمان إصدار صوت واهتزاز
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // إنشاء قناة الإشعارات (إجباري لأندرويد 8.0 وما فوق)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                "إشعارات فواتير العملاء",
+                "إشعارات فواتير وعروض العملاء",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "قناة مخصصة لاستقبال تنبيهات الفواتير من سوق الغيار"
+                description = "قناة مخصصة لاستقبال تنبيهات الفواتير والعروض من سوق الغيار"
                 enableVibration(true)
             }
             notificationManager.createNotificationChannel(channel)
         }
 
-        // عرض الإشعار برقم تعريفي فريد لكي لا يمسح الإشعار الذي قبله
         val notificationId = System.currentTimeMillis().toInt()
         notificationManager.notify(notificationId, notificationBuilder.build())
     }
