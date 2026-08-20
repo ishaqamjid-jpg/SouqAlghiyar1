@@ -10,7 +10,8 @@ data class user_alarm(
     val title: String = "",
     val receiver_id: String = "",
     val fcm_token: String = "",
-    val isRead: Boolean = false
+    val isRead: Boolean = false,
+val type: String = "order" 
 )
 
 data class admin_alarm(
